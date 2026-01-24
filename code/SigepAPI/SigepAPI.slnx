@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="../SigepApplication/SigepApplication.csproj" />
+  <Project Path="../SigepDomain/SigepDomain.csproj" />
+  <Project Path="../SigepInfrastructure/SigepInfrastructure.csproj" />
+  <Project Path="SigepAPI.csproj" />
+</Solution>

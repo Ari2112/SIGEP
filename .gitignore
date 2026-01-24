@@ -1,0 +1,129 @@
+# ==================================================
+# SOLO SE SUBE EL CÓDIGO EN /code Y /frontend
+# Todo lo demás (documentación, scripts de ayuda) se ignora
+# ==================================================
+
+# Ignorar todo en la raíz excepto code/ y frontend/
+/*
+!/.gitignore
+!/code/
+!/frontend/
+
+# ==================================================
+# Archivos temporales y builds dentro de /code
+# ==================================================
+
+# .NET - Build results
+code/**/[Dd]ebug/
+code/**/[Dd]ebugPublic/
+code/**/[Rr]elease/
+code/**/[Rr]eleases/
+code/**/x64/
+code/**/x86/
+code/**/build/
+code/**/bld/
+code/**/[Bb]in/
+code/**/[Oo]bj/
+
+# .NET - User-specific files
+code/**/*.suo
+code/**/*.user
+code/**/*.userosscache
+code/**/*.sln.docstates
+
+# Visual Studio profiler
+code/**/*.psess
+code/**/*.vsp
+code/**/*.vspx
+
+# ReSharper
+code/**/_ReSharper*/
+code/**/*.[Rr]e[Ss]harper
+code/**/*.DotSettings.user
+
+# JetBrains Rider
+code/**/.idea/
+code/**/*.sln.iml
+
+# Entity Framework - Solo archivos de base de datos, NO Migrations
+code/**/*.mdf
+code/**/*.ldf
+code/**/*.ndf
+
+# Database files
+code/**/*.db
+code/**/*.db-shm
+code/**/*.db-wal
+code/**/*.sqlite
+code/**/*.sqlite3
+
+# Logs
+code/**/*.log
+code/**/logs/
+
+# Environment variables con secretos
+code/**/.env
+code/**/.env.local
+code/**/.env.development.local
+code/**/.env.test.local
+code/**/.env.production.local
+code/**/appsettings.Production.json
+code/**/appsettings.Staging.json
+code/**/secrets.json
+
+# Certificate files
+code/**/*.pfx
+code/**/*.p12
+
+# Temporary files
+code/**/*.swp
+code/**/*.swo
+code/**/*~
+code/**/.DS_Store
+code/**/Thumbs.db
+
+# ==================================================
+# Archivos temporales y builds dentro de /frontend
+# ==================================================
+
+# Node.js
+frontend/**/node_modules/
+frontend/**/npm-debug.log*
+frontend/**/yarn-debug.log*
+frontend/**/yarn-error.log*
+frontend/**/.pnpm-debug.log*
+
+# Build output
+frontend/**/dist/
+frontend/**/dist-ssr/
+frontend/**/build/
+
+# Environment variables
+frontend/**/.env
+frontend/**/.env.local
+frontend/**/.env.development.local
+frontend/**/.env.test.local
+frontend/**/.env.production.local
+frontend/**/*.local
+
+# Logs
+frontend/**/*.log
+frontend/**/logs/
+
+# Temporary files
+frontend/**/*.swp
+frontend/**/*.swo
+frontend/**/*~
+frontend/**/.DS_Store
+frontend/**/Thumbs.db
+frontend/**/.idea/
+
+# ==================================================
+# SE IGNORAN (no se suben al repo):
+# - documents/
+# - instructions/
+# - SIGEP ARI/
+# - README.md, INICIO-RAPIDO.md, COMANDOS.md
+# - *.ps1 (scripts PowerShell)
+# - Cualquier archivo en la raíz
+# ==================================================
