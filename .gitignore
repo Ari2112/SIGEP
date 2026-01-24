@@ -3,11 +3,12 @@
 # Todo lo demás (documentación, scripts de ayuda) se ignora
 # ==================================================
 
-# Ignorar todo en la raíz excepto code/ y frontend/
+# Ignorar todo en la raíz excepto code/, frontend/ y SigepDatabase/
 /*
 !/.gitignore
 !/code/
 !/frontend/
+!/SigepDatabase/
 
 # ==================================================
 # Archivos temporales y builds dentro de /code
