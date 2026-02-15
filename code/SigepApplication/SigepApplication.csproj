@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SigepDomain\SigepDomain.csproj" />
-    <ProjectReference Include="..\SigepInfrastructure\SigepInfrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

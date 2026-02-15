@@ -19,6 +19,8 @@ const Layout = ({ children }) => {
           <nav className="nav">
             <Link to="/dashboard" className="nav-link">Dashboard</Link>
             <Link to="/employees" className="nav-link">Empleados</Link>
+            <Link to="/vacations" className="nav-link">Vacaciones</Link>
+            <Link to="/permissions" className="nav-link">Permisos</Link>
             {(user?.role === 'Admin' || user?.role === 'RRHH') && (
               <>
                 <Link to="/positions" className="nav-link">Puestos</Link>

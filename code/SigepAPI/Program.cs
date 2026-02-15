@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SigepApplication.Interfaces;
-using SigepApplication.Services;
+using SigepInfrastructure.Services;
 using SigepInfrastructure.Persistence;
 using System.Text;
 
@@ -56,6 +56,10 @@ builder.Services.AddCors(options =>
 // Register Application Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IVacationService, VacationService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
 
 // Configure Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
@@ -96,20 +100,26 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Seed database
+// Verificar conexión a la base de datos (sin migraciones automáticas)
+// La base de datos se maneja con scripts SQL en SigepDataBase/
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var context = services.GetRequiredService<ApplicationDbContext>();
-        await context.Database.MigrateAsync();
-        await DbInitializer.SeedAsync(context);
+        
+        // Solo verificar que se puede conectar
+        if (await context.Database.CanConnectAsync())
+        {
+            var logger = services.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("Conexión a base de datos exitosa.");
+        }
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while migrating or seeding the database.");
+        logger.LogError(ex, "No se puede conectar a la base de datos. Ejecuta reset-db.bat en SigepDataBase/");
     }
 }
 

@@ -3,7 +3,7 @@ using SigepApplication.DTOs.Employees;
 using SigepApplication.Interfaces;
 using SigepInfrastructure.Persistence;
 
-namespace SigepApplication.Services;
+namespace SigepInfrastructure.Services;
 
 public class EmployeeService : IEmployeeService
 {

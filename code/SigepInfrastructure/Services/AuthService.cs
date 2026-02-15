@@ -8,7 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 
-namespace SigepApplication.Services;
+namespace SigepInfrastructure.Services;
 
 public class AuthService : IAuthService
 {

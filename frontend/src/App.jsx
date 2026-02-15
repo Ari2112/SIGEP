@@ -4,6 +4,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
+import Vacations from './pages/Vacations';
+import Permissions from './pages/Permissions';
 
 function App() {
   return (
@@ -26,6 +28,24 @@ function App() {
             element={
               <ProtectedRoute>
                 <Employees />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/vacations"
+            element={
+              <ProtectedRoute>
+                <Vacations />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/permissions"
+            element={
+              <ProtectedRoute>
+                <Permissions />
               </ProtectedRoute>
             }
           />

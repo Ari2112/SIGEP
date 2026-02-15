@@ -1,1 +1,19 @@
-CREATE
+-- ============================================
+-- SIGEP - Base de Datos
+-- SQL Server
+-- ============================================
+-- 
+-- Archivos disponibles:
+--   - schema.sql  : Estructura de tablas (DDL)
+--   - seed.sql    : Datos iniciales
+--   - reset.sql   : Reset completo (schema + seed)
+--
+-- Scripts de ejecución:
+--   - reset-db.bat : Ejecuta reset.sql
+--   - seed-db.bat  : Ejecuta seed.sql
+--
+-- Para inicializar por primera vez:
+--   1. Ejecuta reset-db.bat
+--   2. O ejecuta reset.sql desde SSMS/Azure Data Studio
+--
+-- ============================================
