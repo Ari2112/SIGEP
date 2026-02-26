@@ -1,53 +1,9 @@
-.employees .page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
+/* Employees — page-specific only */
 
-.employees h1 {
-  color: #2c3e50;
-  margin: 0;
-}
+.table-responsive { overflow-x: auto; }
 
-.table-responsive {
-  overflow-x: auto;
-}
-
-.status-badge {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-activo {
-  background-color: #d4edda;
-  color: #155724;
-}
-
-.status-inactivo {
-  background-color: #f8d7da;
-  color: #721c24;
-}
-
-.status-suspendido {
-  background-color: #fff3cd;
-  color: #856404;
-}
-
-.status-liquidado {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-
-@media (max-width: 768px) {
-  table {
-    font-size: 12px;
-  }
-  
-  table th,
-  table td {
-    padding: 8px;
-  }
-}
+/* Status badges (extend .badge from components.css) */
+.status-activo     { background: var(--c-success-bg); color: var(--c-success-text); }
+.status-inactivo   { background: var(--c-danger-bg);  color: var(--c-danger-text);  }
+.status-suspendido { background: var(--c-warning-bg); color: var(--c-warning-text); }
+.status-liquidado  { background: var(--c-info-bg);    color: var(--c-info-text);    }

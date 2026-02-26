@@ -277,11 +277,11 @@ function Vacations() {
 
         {/* Tab Content */}
         {activeTab === 'my-requests' && (
-          <div className="requests-table">
+          <div className="table-card">
             {myRequests.length === 0 ? (
               <p className="no-data">No tiene solicitudes de vacaciones</p>
             ) : (
-              <table>
+              <table className="table">
                 <thead>
                   <tr>
                     <th>Fecha Inicio</th>
@@ -319,11 +319,11 @@ function Vacations() {
         )}
 
         {activeTab === 'pending' && isManager && (
-          <div className="requests-table">
+          <div className="table-card">
             {pendingRequests.length === 0 ? (
               <p className="no-data">No hay solicitudes pendientes de aprobar</p>
             ) : (
-              <table>
+              <table className="table">
                 <thead>
                   <tr>
                     <th>Empleado</th>

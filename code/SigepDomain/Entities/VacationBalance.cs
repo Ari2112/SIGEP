@@ -8,7 +8,7 @@ public class VacationBalance
     public decimal TotalDays { get; set; }
     public decimal UsedDays { get; set; }
     public decimal PendingDays { get; set; }
-    public decimal AvailableDays => TotalDays - UsedDays - PendingDays;
+    public decimal AvailableDays { get; private set; }
     public decimal CarriedOverDays { get; set; }
     public DateTime ExpirationDate { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

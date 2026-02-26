@@ -11,20 +11,22 @@ const Layout = ({ children }) => {
     navigate('/login');
   };
 
+  const isManager = user?.role === 'Admin' || user?.role === 'RRHH';
+
   return (
     <div className="layout">
       <header className="header">
         <div className="header-content">
           <h1 className="logo">SIGEP</h1>
           <nav className="nav">
-            <Link to="/dashboard" className="nav-link">Dashboard</Link>
-            <Link to="/employees" className="nav-link">Empleados</Link>
+            <Link to="/dashboard" className="nav-link">Inicio</Link>
+            <Link to="/attendance" className="nav-link">Asistencia</Link>
             <Link to="/vacations" className="nav-link">Vacaciones</Link>
             <Link to="/permissions" className="nav-link">Permisos</Link>
-            {(user?.role === 'Admin' || user?.role === 'RRHH') && (
+            {isManager && (
               <>
-                <Link to="/positions" className="nav-link">Puestos</Link>
-                <Link to="/schedules" className="nav-link">Horarios</Link>
+                <Link to="/overtime" className="nav-link">Horas Extra</Link>
+                <Link to="/employees" className="nav-link">Empleados</Link>
               </>
             )}
           </nav>

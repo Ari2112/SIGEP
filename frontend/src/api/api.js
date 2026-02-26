@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://localhost:7087/api/v1';
+const API_BASE_URL = 'http://localhost:5017/api/v1';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -45,6 +45,13 @@ export const authAPI = {
 export const employeeAPI = {
   getAll: () => apiClient.get('/employees'),
   getById: (id) => apiClient.get(`/employees/${id}`),
+  create: (data) => apiClient.post('/employees', data),
+  update: (id, data) => apiClient.put(`/employees/${id}`, data),
+  deactivate: (id) => apiClient.delete(`/employees/${id}`),
+  getPositions: () => apiClient.get('/employees/positions'),
+  createPosition: (data) => apiClient.post('/employees/positions', data),
+  getSchedules: () => apiClient.get('/employees/schedules'),
+  createSchedule: (data) => apiClient.post('/employees/schedules', data),
 };
 
 export const vacationAPI = {
@@ -73,6 +80,27 @@ export const permissionAPI = {
   rejectRequest: (id, reason) => apiClient.post(`/permissions/requests/${id}/reject`, { reason }),
   cancelRequest: (id, reason) => apiClient.post(`/permissions/requests/${id}/cancel`, { reason }),
   getMyUsage: (year) => apiClient.get(`/permissions/usage${year ? `?year=${year}` : ''}`),
+};
+
+export const attendanceAPI = {
+  getToday: () => apiClient.get('/attendance/today'),
+  getMyRecords: (dateFrom, dateTo) =>
+    apiClient.get('/attendance/my', { params: { dateFrom, dateTo } }),
+  getByEmployee: (employeeId, dateFrom, dateTo) =>
+    apiClient.get(`/attendance/employee/${employeeId}`, { params: { dateFrom, dateTo } }),
+  getAll: (filters) => apiClient.get('/attendance', { params: filters }),
+  checkIn: (notes) => apiClient.post('/attendance/check-in', { notes }),
+  checkOut: (notes) => apiClient.post('/attendance/check-out', { notes }),
+};
+
+export const overtimeAPI = {
+  getAll: (filters) => apiClient.get('/overtime', { params: filters }),
+  getMy: (filters) => apiClient.get('/overtime/my', { params: filters }),
+  getByEmployee: (employeeId, filters) =>
+    apiClient.get(`/overtime/employee/${employeeId}`, { params: filters }),
+  getById: (id) => apiClient.get(`/overtime/${id}`),
+  review: (id, approve, comments) =>
+    apiClient.post(`/overtime/${id}/review`, { approve, comments }),
 };
 
 export const notificationAPI = {

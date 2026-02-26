@@ -1,0 +1,6 @@
+/* OvertimeHours — container only
+ * Tabs, table (.table), table-wrapper (.table-card), filters-bar, no-data,
+ * info-box, badges, buttons, modals, forms, alerts, loading → components.css
+ */
+
+.overtime-container { max-width: 1200px; }

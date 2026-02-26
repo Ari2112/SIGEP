@@ -1,84 +1,96 @@
+/* Layout — Solo estructura, colores vienen de tokens */
+
 .layout {
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
 }
 
+/* --- HEADER --- */
 .header {
-  background-color: #2c3e50;
-  color: white;
-  padding: 15px 0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background: var(--c-header-bg);
+  height: var(--header-h);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-dropdown);
+  box-shadow: var(--shadow-md);
 }
 
 .header-content {
-  max-width: 1200px;
+  max-width: var(--container);
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 var(--sp-5);
+  height: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--sp-6);
 }
 
 .logo {
-  font-size: 24px;
-  font-weight: bold;
-  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--fw-bold);
+  color: var(--c-header-text);
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
 }
 
+/* --- NAV --- */
 .nav {
   display: flex;
-  gap: 20px;
+  align-items: center;
+  gap: var(--sp-1);
   flex: 1;
-  justify-content: center;
 }
 
 .nav-link {
-  color: white;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  color: var(--c-header-link);
   text-decoration: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
+  transition: background var(--t), color var(--t);
+  white-space: nowrap;
 }
 
-.nav-link:hover {
-  background-color: #34495e;
+.nav-link:hover,
+.nav-link.active {
+  background: rgba(255,255,255,0.1);
+  color: var(--c-header-text);
+  text-decoration: none;
 }
 
+/* --- USER MENU --- */
 .user-menu {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-3);
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .user-name {
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  color: var(--c-header-text);
 }
 
 .user-role {
-  font-size: 12px;
-  opacity: 0.8;
+  font-size: var(--text-xs);
+  color: var(--c-header-link);
 }
 
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 12px;
-}
-
+/* --- MAIN --- */
 .main-content {
   flex: 1;
-  padding: 30px 0;
+  background: var(--c-bg);
 }
 
+/* --- FOOTER --- */
 .footer {
-  background-color: #2c3e50;
-  color: white;
+  background: var(--c-header-bg);
+  padding: var(--sp-4) var(--sp-5);
   text-align: center;
-  padding: 20px 0;
-  margin-top: auto;
-}
-
-.footer p {
-  margin: 0;
-  font-size: 14px;
+  font-size: var(--text-xs);
+  color: var(--c-header-link);
 }

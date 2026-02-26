@@ -264,8 +264,8 @@ const Permissions = () => {
 
       {/* My Requests Table */}
       {activeTab === 'my-requests' && (
-        <div className="requests-table">
-          <table>
+        <div className="table-card">
+          <table className="table">
             <thead>
               <tr>
                 <th>Tipo</th>
@@ -315,8 +315,8 @@ const Permissions = () => {
 
       {/* Pending Approval Table */}
       {activeTab === 'pending' && isManager && (
-        <div className="requests-table">
-          <table>
+        <div className="table-card">
+          <table className="table">
             <thead>
               <tr>
                 <th>Empleado</th>
@@ -471,7 +471,7 @@ const Permissions = () => {
               <button className="close-btn" onClick={() => setShowApproveModal(false)}>×</button>
             </div>
             <p>¿Está seguro que desea aprobar esta solicitud de permiso?</p>
-            <div className="request-summary">
+            <div className="info-box">
               <p><strong>Empleado:</strong> {selectedRequest.employeeName}</p>
               <p><strong>Tipo:</strong> {selectedRequest.permissionTypeName}</p>
               <p><strong>Fecha:</strong> {formatDate(selectedRequest.date)}</p>
@@ -507,7 +507,7 @@ const Permissions = () => {
               <button className="close-btn" onClick={() => setShowRejectModal(false)}>×</button>
             </div>
             <p>¿Está seguro que desea rechazar esta solicitud de permiso?</p>
-            <div className="request-summary">
+            <div className="info-box">
               <p><strong>Empleado:</strong> {selectedRequest.employeeName}</p>
               <p><strong>Tipo:</strong> {selectedRequest.permissionTypeName}</p>
               <p><strong>Fecha:</strong> {formatDate(selectedRequest.date)}</p>

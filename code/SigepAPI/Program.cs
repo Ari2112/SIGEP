@@ -9,7 +9,6 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddControllers();
 
 // Configure DbContext
@@ -60,6 +59,8 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IVacationService, VacationService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddScoped<IOvertimeService, OvertimeService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 
 // Configure Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
@@ -72,7 +73,6 @@ builder.Services.AddSwaggerGen(c =>
         Description = "Sistema Integral de Gestión de Personal"
     });
 
-    // Add JWT Authentication to Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"",
@@ -100,16 +100,13 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Verificar conexión a la base de datos (sin migraciones automáticas)
-// La base de datos se maneja con scripts SQL en SigepDataBase/
+// Verificar conexión a la base de datos
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var context = services.GetRequiredService<ApplicationDbContext>();
-        
-        // Solo verificar que se puede conectar
         if (await context.Database.CanConnectAsync())
         {
             var logger = services.GetRequiredService<ILogger<Program>>();
@@ -123,7 +120,6 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -131,12 +127,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseCors("AllowFrontend");
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();

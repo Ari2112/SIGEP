@@ -103,3 +103,61 @@ export const getVacationBalance = (employeeId) => {
 export const getPermissionUsage = (employeeId) => {
   return mockPermissionUsage[employeeId] || [];
 };
+
+// ============ MOCK DATA ADICIONAL ============
+
+// Registros de asistencia
+export const mockAttendanceRecords = [
+  { id: 1, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-25', checkInTime: '2026-02-25T08:02:00', checkOutTime: null, workedHours: null, status: 'Parcial' },
+  { id: 2, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-24', checkInTime: '2026-02-24T07:58:00', checkOutTime: '2026-02-24T17:05:00', workedHours: 9.12, status: 'Completo' },
+  { id: 3, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-21', checkInTime: '2026-02-21T08:15:00', checkOutTime: '2026-02-21T17:30:00', workedHours: 9.25, status: 'Completo' },
+  { id: 4, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-20', checkInTime: '2026-02-20T08:00:00', checkOutTime: '2026-02-20T12:00:00', workedHours: 4.0, status: 'Parcial' },
+  { id: 5, employeeId: 5, employeeName: 'Ana Martínez', date: '2026-02-25', checkInTime: '2026-02-25T08:10:00', checkOutTime: null, workedHours: null, status: 'Parcial' },
+  { id: 6, employeeId: 6, employeeName: 'Luis Hernández', date: '2026-02-25', checkInTime: '2026-02-25T07:45:00', checkOutTime: null, workedHours: null, status: 'Parcial' },
+  { id: 7, employeeId: 1, employeeName: 'Admin Sistema', date: '2026-02-25', checkInTime: '2026-02-25T07:30:00', checkOutTime: null, workedHours: null, status: 'Parcial' },
+];
+
+// Registros de horas extra
+export const mockOvertimeRecords = [
+  { id: 1, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-24', hours: 1.5, reason: 'Cierre de proyecto urgente', status: 'Detectada', detectionType: 'Automática', amount: 12500 },
+  { id: 2, employeeId: 5, employeeName: 'Ana Martínez', date: '2026-02-23', hours: 2.0, reason: 'Atención a cliente', status: 'Detectada', detectionType: 'Automática', amount: 15000 },
+  { id: 3, employeeId: 6, employeeName: 'Luis Hernández', date: '2026-02-22', hours: 1.0, reason: 'Mantenimiento emergente', status: 'Aprobada', detectionType: 'Automática', amount: 8500, approvedAt: '2026-02-23', reviewerName: 'María González' },
+  { id: 4, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-20', hours: 0.75, reason: 'Entrega de informe', status: 'Rechazada', detectionType: 'Automática', amount: 6250, approvedAt: '2026-02-21', reviewerName: 'María González', reviewerComments: 'No autorizada previamente' },
+];
+
+// Empleados detallados para gestión
+export const mockEmployeesDetailed = [
+  { id: 1, firstName: 'Admin', lastName: 'Sistema', fullName: 'Admin Sistema', identificationNumber: '101010101', email: 'admin@alquileres-segura.com', phone: '8888-1111', positionName: 'Administrador de Sistemas', baseSalary: 1200000, hireDate: '2020-01-15', status: 'Activo' },
+  { id: 2, firstName: 'María', lastName: 'González', fullName: 'María González', identificationNumber: '202020202', email: 'maria.gonzalez@alquileres-segura.com', phone: '8888-2222', positionName: 'Jefa de Recursos Humanos', baseSalary: 1500000, hireDate: '2021-03-01', status: 'Activo' },
+  { id: 3, firstName: 'Carlos', lastName: 'Ramírez', fullName: 'Carlos Ramírez', identificationNumber: '303030303', email: 'carlos.ramirez@alquileres-segura.com', phone: '8888-3333', positionName: 'Supervisor de Operaciones', baseSalary: 1000000, hireDate: '2022-06-15', status: 'Activo' },
+  { id: 4, firstName: 'Juan', lastName: 'Pérez', fullName: 'Juan Pérez', identificationNumber: '404040404', email: 'juan.perez@alquileres-segura.com', phone: '8888-4444', positionName: 'Técnico de Mantenimiento', baseSalary: 650000, hireDate: '2023-01-10', status: 'Activo' },
+  { id: 5, firstName: 'Ana', lastName: 'Martínez', fullName: 'Ana Martínez', identificationNumber: '505050505', email: 'ana.martinez@alquileres-segura.com', phone: '8888-5555', positionName: 'Ejecutiva de Ventas', baseSalary: 700000, hireDate: '2023-05-20', status: 'Activo' },
+  { id: 6, firstName: 'Luis', lastName: 'Hernández', fullName: 'Luis Hernández', identificationNumber: '606060606', email: 'luis.hernandez@alquileres-segura.com', phone: '8888-6666', positionName: 'Técnico de Mantenimiento', baseSalary: 600000, hireDate: '2024-02-01', status: 'Activo' },
+];
+
+// Helpers para asistencia
+export const getTodayAttendance = (employeeId) => {
+  const today = new Date().toISOString().split('T')[0];
+  return mockAttendanceRecords.find(r => r.employeeId === employeeId && r.date === today) || null;
+};
+
+export const getMyAttendanceRecords = (employeeId) => {
+  return mockAttendanceRecords.filter(r => r.employeeId === employeeId).sort((a, b) => new Date(b.date) - new Date(a.date));
+};
+
+export const getAllAttendanceRecords = () => {
+  return mockAttendanceRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+};
+
+// Helpers para horas extra
+export const getMyOvertimeRecords = (employeeId) => {
+  return mockOvertimeRecords.filter(r => r.employeeId === employeeId);
+};
+
+export const getPendingOvertimeRecords = () => {
+  return mockOvertimeRecords.filter(r => r.status === 'Detectada');
+};
+
+export const getAllOvertimeRecords = () => {
+  return mockOvertimeRecords;
+};

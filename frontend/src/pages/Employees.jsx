@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { employeeAPI } from '../api/api';
+import { USE_MOCK, mockEmployeesDetailed } from '../api/mockData';
 import './Employees.css';
 
 const Employees = () => {
@@ -15,6 +16,16 @@ const Employees = () => {
   const loadEmployees = async () => {
     try {
       setLoading(true);
+      
+      // ============ MOCK DATA ============
+      if (USE_MOCK) {
+        setEmployees(mockEmployeesDetailed);
+        setError('');
+        setLoading(false);
+        return;
+      }
+      // ============ FIN MOCK DATA ============
+      
       const response = await employeeAPI.getAll();
       setEmployees(response.data);
       setError('');
@@ -57,7 +68,7 @@ const Employees = () => {
         ) : (
           <div className="card">
             <div className="table-responsive">
-              <table>
+              <table className="table">
                 <thead>
                   <tr>
                     <th>ID</th>

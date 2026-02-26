@@ -1,54 +1,88 @@
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 import './Dashboard.css';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const isManager = user?.role === 'Admin' || user?.role === 'RRHH';
+
+  const modules = [
+    {
+      icon: '🕐',
+      title: 'Asistencia',
+      description: 'Registra tu entrada y salida diaria',
+      path: '/attendance',
+      roles: ['Admin', 'RRHH', 'Jefatura', 'Empleado']
+    },
+    {
+      icon: '🌴',
+      title: 'Vacaciones',
+      description: 'Solicita y gestiona tus vacaciones',
+      path: '/vacations',
+      roles: ['Admin', 'RRHH', 'Jefatura', 'Empleado']
+    },
+    {
+      icon: '📋',
+      title: 'Permisos',
+      description: 'Solicita permisos especiales',
+      path: '/permissions',
+      roles: ['Admin', 'RRHH', 'Jefatura', 'Empleado']
+    },
+    {
+      icon: '⏰',
+      title: 'Horas Extra',
+      description: 'Revisa y aprueba horas extra detectadas',
+      path: '/overtime',
+      roles: ['Admin', 'RRHH']
+    },
+    {
+      icon: '👥',
+      title: 'Empleados',
+      description: 'Gestiona el personal de la empresa',
+      path: '/employees',
+      roles: ['Admin', 'RRHH']
+    },
+  ];
+
+  const visibleModules = modules.filter(m => m.roles.includes(user?.role));
 
   return (
     <Layout>
       <div className="dashboard">
-        <h1>Bienvenido, {user?.username}!</h1>
-        
-        <div className="dashboard-grid">
-          <div className="card stat-card">
-            <h3>👥 Empleados</h3>
-            <p className="stat-number">-</p>
-            <p className="stat-label">Total de empleados activos</p>
-          </div>
-
-          <div className="card stat-card">
-            <h3>📋 Puestos</h3>
-            <p className="stat-number">-</p>
-            <p className="stat-label">Posiciones disponibles</p>
-          </div>
-
-          <div className="card stat-card">
-            <h3>⏰ Horarios</h3>
-            <p className="stat-number">-</p>
-            <p className="stat-label">Horarios configurados</p>
-          </div>
-
-          <div className="card stat-card">
-            <h3>✅ Asistencias Hoy</h3>
-            <p className="stat-number">-</p>
-            <p className="stat-label">Registros del día</p>
-          </div>
+        <div className="dashboard-welcome">
+          <h1>Bienvenido, {user?.username}</h1>
+          <p className="welcome-subtitle">Panel de Control — {user?.role}</p>
         </div>
 
-        <div className="card">
-          <h2>Sistema Inicial</h2>
-          <p>
-            Este es el MVP (Producto Mínimo Viable) del Sistema Integral de Gestión de Personal.
-          </p>
-          <p>
-            <strong>Funcionalidades disponibles:</strong>
-          </p>
-          <ul>
-            <li>✅ Autenticación con JWT</li>
-            <li>✅ Gestión de roles (Admin, RRHH, Jefatura, Empleado)</li>
-            <li>✅ Visualización de empleados</li>
-            <li>⏳ Más módulos próximamente...</li>
+        <div className="modules-grid">
+          {visibleModules.map(mod => (
+            <div
+              key={mod.path}
+              className="module-card"
+              onClick={() => navigate(mod.path)}
+            >
+              <span className="module-icon">{mod.icon}</span>
+              <h3>{mod.title}</h3>
+              <p>{mod.description}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="card status-card">
+          <h2>Estado del Sistema</h2>
+          <ul className="status-list">
+            <li><span className="status-dot green"></span> Autenticación JWT</li>
+            <li><span className="status-dot green"></span> Gestión de Empleados</li>
+            <li><span className="status-dot green"></span> Módulo de Asistencia</li>
+            <li><span className="status-dot green"></span> Módulo de Vacaciones</li>
+            <li><span className="status-dot green"></span> Módulo de Permisos</li>
+            <li><span className="status-dot green"></span> Módulo de Horas Extra</li>
+            <li><span className="status-dot yellow"></span> Planilla (próximamente)</li>
+            <li><span className="status-dot yellow"></span> Aguinaldo (próximamente)</li>
+            <li><span className="status-dot yellow"></span> Liquidaciones (próximamente)</li>
           </ul>
         </div>
       </div>
