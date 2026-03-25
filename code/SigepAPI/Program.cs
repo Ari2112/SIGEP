@@ -5,6 +5,7 @@ using Microsoft.OpenApi.Models;
 using SigepApplication.Interfaces;
 using SigepInfrastructure.Services;
 using SigepInfrastructure.Persistence;
+using SigepApplication.Interfaces;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -61,6 +62,12 @@ builder.Services.AddScoped<IVacationService, VacationService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IOvertimeService, OvertimeService>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IPayrollService, PayrollService>();
+builder.Services.AddScoped<ISettlementService, SettlementService>();
+builder.Services.AddScoped<IAnnualBonusService, AnnualBonusService>();
+builder.Services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
+builder.Services.AddScoped<IDisabilityService, DisabilityService>();
+builder.Services.AddScoped<IReportService, ReportService>();
 
 // Configure Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();

@@ -103,6 +103,61 @@ export const overtimeAPI = {
     apiClient.post(`/overtime/${id}/review`, { approve, comments }),
 };
 
+export const payrollAPI = {
+  getAll: () => apiClient.get('/payroll'),
+  getById: (id) => apiClient.get(`/payroll/${id}`),
+  generate: (data) => apiClient.post('/payroll/generate', data),
+  approve: (id, notes) => apiClient.post(`/payroll/${id}/approve`, { notes }),
+  annul: (id, notes) => apiClient.post(`/payroll/${id}/annul`, { notes }),
+  getDeductionTypes: () => apiClient.get('/payroll/deduction-types'),
+  getBenefitTypes: () => apiClient.get('/payroll/benefit-types'),
+};
+
+export const settlementAPI = {
+  getAll: () => apiClient.get('/settlement'),
+  getById: (id) => apiClient.get(`/settlement/${id}`),
+  getByEmployee: (empId) => apiClient.get(`/settlement/employee/${empId}`),
+  calculate: (data) => apiClient.post('/settlement/calculate', data),
+  approve: (id, notes) => apiClient.post(`/settlement/${id}/approve`, { notes }),
+  markAsPaid: (id) => apiClient.post(`/settlement/${id}/pay`),
+};
+
+export const annualBonusAPI = {
+  getAll: () => apiClient.get('/annualbonus'),
+  getById: (id) => apiClient.get(`/annualbonus/${id}`),
+  getByYear: (year) => apiClient.get(`/annualbonus/year/${year}`),
+  calculate: (data) => apiClient.post('/annualbonus/calculate', data),
+  approve: (id, notes) => apiClient.post(`/annualbonus/${id}/approve`, { notes }),
+  recalculate: (id) => apiClient.post(`/annualbonus/${id}/recalculate`),
+};
+
+export const evaluationAPI = {
+  getAll: (filters) => apiClient.get('/performanceevaluation', { params: filters }),
+  getMy: () => apiClient.get('/performanceevaluation/my'),
+  getByEmployee: (empId) => apiClient.get(`/performanceevaluation/employee/${empId}`),
+  getById: (id) => apiClient.get(`/performanceevaluation/${id}`),
+  create: (data) => apiClient.post('/performanceevaluation', data),
+  update: (id, data) => apiClient.put(`/performanceevaluation/${id}`, data),
+  acknowledge: (id) => apiClient.post(`/performanceevaluation/${id}/acknowledge`),
+};
+
+export const disabilityAPI = {
+  getAll: (filters) => apiClient.get('/disability', { params: filters }),
+  getMy: () => apiClient.get('/disability/my'),
+  getByEmployee: (empId) => apiClient.get(`/disability/employee/${empId}`),
+  getById: (id) => apiClient.get(`/disability/${id}`),
+  create: (data) => apiClient.post('/disability', data),
+  createForEmployee: (empId, data) => apiClient.post(`/disability/employee/${empId}`, data),
+  review: (id, approve, comments) => apiClient.post(`/disability/${id}/review`, { approve, comments }),
+};
+
+export const reportAPI = {
+  getDashboardStats: () => apiClient.get('/report/dashboard'),
+  getAttendanceReport: (filters) => apiClient.get('/report/attendance', { params: filters }),
+  getOvertimeReport: (filters) => apiClient.get('/report/overtime', { params: filters }),
+  getPayrollReport: (payrollId) => apiClient.get(`/report/payroll/${payrollId}`),
+};
+
 export const notificationAPI = {
   getNotifications: (unreadOnly = false) => apiClient.get(`/notifications?unreadOnly=${unreadOnly}`),
   getUnreadCount: () => apiClient.get('/notifications/unread-count'),

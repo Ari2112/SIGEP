@@ -1,96 +1,218 @@
-/* Dashboard — page-specific layout */
+/* Dashboard */
 
-.dashboard { max-width: 1100px; }
-
-.dashboard-welcome { margin-bottom: var(--sp-8); }
-
-.dashboard-welcome h1 {
-  font-size: var(--text-2xl);
-  color: var(--c-text);
-  margin-bottom: var(--sp-1);
-}
-
-.welcome-subtitle {
-  color: var(--c-text-3);
-  font-size: var(--text-sm);
-}
-
-.modules-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--sp-5);
-  margin-bottom: var(--sp-8);
-}
-
-.module-card {
-  background: var(--c-surface);
-  border-radius: var(--r-lg);
-  padding: var(--sp-7) var(--sp-5);
-  text-align: center;
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: transform var(--t), box-shadow var(--t), border-color var(--t);
-  border: 1px solid var(--c-border);
-}
-
-.module-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--c-primary);
-}
-
-.module-icon {
-  font-size: 2.2rem;
-  display: block;
-  margin-bottom: var(--sp-3);
-}
-
-.module-card h3 {
-  font-size: var(--text-base);
-  font-weight: var(--fw-semibold);
-  color: var(--c-text);
-  margin-bottom: var(--sp-2);
-}
-
-.module-card p {
-  font-size: var(--text-xs);
-  color: var(--c-text-3);
-  line-height: var(--leading-relaxed);
-}
-
-.status-card { max-width: 500px; }
-
-.status-card h2 {
-  font-size: var(--text-lg);
-  color: var(--c-text);
-  margin-bottom: var(--sp-4);
-}
-
-.status-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.status-list li {
+/* Bienvenida */
+.welcome-banner {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) 0;
-  border-bottom: 1px solid var(--c-border);
-  font-size: var(--text-sm);
-  color: var(--c-text-2);
+  justify-content: space-between;
+  background: var(--grad-brand);
+  border-radius: var(--r-xl);
+  padding: var(--sp-6) var(--sp-8);
+  margin-bottom: var(--sp-6);
+  color: white;
 }
 
-.status-list li:last-child { border-bottom: none; }
+.welcome-text h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-bold);
+  color: white;
+  margin: 0 0 var(--sp-1);
+}
 
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+.welcome-text h1 span {
+  opacity: 0.9;
+}
+
+.welcome-text p {
+  font-size: var(--text-sm);
+  opacity: 0.75;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.role-badge {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-full);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+}
+
+/* Banner de asistencia */
+.attendance-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5);
+  border-radius: var(--r-lg);
+  margin-bottom: var(--sp-6);
+  border: 1px solid;
+}
+
+.attendance-banner.not-checked {
+  background: var(--c-warning-bg);
+  border-color: color-mix(in srgb, var(--c-warning) 30%, transparent);
+  color: var(--c-warning-text);
+}
+
+.attendance-banner.checked-in {
+  background: var(--c-info-bg);
+  border-color: color-mix(in srgb, var(--c-info) 30%, transparent);
+  color: var(--c-info-text);
+}
+
+.attendance-banner.done {
+  background: var(--c-success-bg);
+  border-color: color-mix(in srgb, var(--c-success) 30%, transparent);
+  color: var(--c-success-text);
+}
+
+.attendance-icon { font-size: 1.2rem; flex-shrink: 0; }
+
+.attendance-text {
+  flex: 1;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+}
+
+/* Stats grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+
+.stat-card {
+  background: var(--c-surface);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  border: 1px solid var(--c-border);
+  transition: box-shadow var(--t), transform var(--t);
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
   flex-shrink: 0;
 }
 
-.status-dot.green  { background: var(--c-success); }
-.status-dot.yellow { background: var(--c-warning); }
-.status-dot.red    { background: var(--c-danger); }
+.stat-icon.employees   { background: #e0e7ff; }
+.stat-icon.vacations   { background: #d1fae5; }
+.stat-icon.overtime    { background: #fef3c7; }
+.stat-icon.disabilities { background: #fee2e2; }
+.stat-icon.attendance  { background: #dbeafe; }
+.stat-icon.payroll     { background: #ede9fe; }
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stat-value {
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+  line-height: 1;
+}
+
+.stat-value-sm {
+  font-size: var(--text-base) !important;
+}
+
+.stat-label {
+  font-size: var(--text-xs);
+  color: var(--c-text-3);
+}
+
+/* Section header */
+.section-header {
+  margin-bottom: var(--sp-4);
+}
+
+.section-header h2 {
+  font-size: var(--text-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+  margin: 0;
+}
+
+/* Quick links */
+.quick-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--sp-4);
+}
+
+.quick-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  background: var(--c-surface);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4) var(--sp-5);
+  cursor: pointer;
+  border: 1px solid var(--c-border);
+  border-left-width: 4px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--t), transform var(--t);
+}
+
+.quick-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.quick-card-primary  { border-left-color: var(--c-primary); }
+.quick-card-success  { border-left-color: var(--c-success); }
+.quick-card-danger   { border-left-color: var(--c-danger); }
+.quick-card-warning  { border-left-color: var(--c-warning); }
+.quick-card-info     { border-left-color: var(--c-info); }
+.quick-card-secondary { border-left-color: var(--c-border-2); }
+
+.quick-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.quick-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.quick-label {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+}
+
+.quick-desc {
+  font-size: var(--text-xs);
+  color: var(--c-text-3);
+}
+
+@media (max-width: 640px) {
+  .welcome-banner { flex-direction: column; gap: var(--sp-3); text-align: center; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .quick-links-grid { grid-template-columns: 1fr 1fr; }
+}

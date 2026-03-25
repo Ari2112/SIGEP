@@ -1,0 +1,7 @@
+.page-subtitle {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--c-text-3);
+}
+
+.modal-lg { max-width: 860px; }

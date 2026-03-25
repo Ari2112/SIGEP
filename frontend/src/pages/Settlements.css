@@ -1,0 +1,78 @@
+.page-subtitle {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--c-text-3);
+}
+
+.deduction-input-row {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.deduction-input-row input {
+  flex: 1;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r);
+  font-size: var(--text-sm);
+}
+
+.deduction-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--c-danger-bg);
+  color: var(--c-danger-text);
+  border-radius: var(--r-full);
+  padding: 2px var(--sp-3);
+  font-size: var(--text-xs);
+  margin-right: var(--sp-2);
+  margin-bottom: var(--sp-1);
+}
+
+.deduction-tag button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.settlement-breakdown {
+  background: var(--c-bg);
+  border-radius: var(--r);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--c-border);
+  font-size: var(--text-sm);
+  color: var(--c-text-2);
+}
+
+.breakdown-row.deduction {
+  color: var(--c-danger-text);
+}
+
+.breakdown-row.gross {
+  border-top: 2px solid var(--c-border);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+  margin-top: var(--sp-1);
+}
+
+.breakdown-row.total {
+  font-size: var(--text-base);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+  border-bottom: none;
+  border-top: 2px solid var(--c-primary);
+  padding-top: var(--sp-3);
+}

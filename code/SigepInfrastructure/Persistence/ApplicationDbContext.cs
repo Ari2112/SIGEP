@@ -34,6 +34,28 @@ public class ApplicationDbContext : DbContext
     // Módulo horas extra
     public DbSet<OvertimeRecord> OvertimeRecords { get; set; }
 
+    // Módulo planilla
+    public DbSet<Payroll> Payrolls { get; set; }
+    public DbSet<PayrollDetail> PayrollDetails { get; set; }
+    public DbSet<PayrollDeduction> PayrollDeductions { get; set; }
+    public DbSet<PayrollBenefit> PayrollBenefits { get; set; }
+    public DbSet<DeductionType> DeductionTypes { get; set; }
+    public DbSet<BenefitType> BenefitTypes { get; set; }
+
+    // Módulo liquidaciones
+    public DbSet<Settlement> Settlements { get; set; }
+    public DbSet<SettlementDeduction> SettlementDeductions { get; set; }
+
+    // Módulo aguinaldo
+    public DbSet<AnnualBonus> AnnualBonuses { get; set; }
+    public DbSet<AnnualBonusDetail> AnnualBonusDetails { get; set; }
+
+    // Módulo evaluación de desempeño
+    public DbSet<PerformanceEvaluation> PerformanceEvaluations { get; set; }
+
+    // Módulo incapacidades
+    public DbSet<DisabilityRequest> DisabilityRequests { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -104,6 +126,54 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
             entity.Property(o => o.Status).HasConversion<int>();
             entity.Property(o => o.DetectionType).HasConversion<int>();
+        });
+
+        modelBuilder.Entity<Payroll>(entity =>
+        {
+            entity.HasOne(p => p.ProcessedBy).WithMany().HasForeignKey(p => p.ProcessedById).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(p => p.ApprovedBy).WithMany().HasForeignKey(p => p.ApprovedById).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(p => new { p.PeriodYear, p.PeriodMonth, p.PeriodType }).IsUnique();
+            entity.Property(p => p.Status).HasConversion<int>();
+            entity.Property(p => p.PeriodType).HasConversion<int>();
+        });
+
+        modelBuilder.Entity<PayrollDetail>(entity =>
+        {
+            entity.HasIndex(pd => new { pd.PayrollId, pd.EmployeeId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Settlement>(entity =>
+        {
+            entity.HasOne(s => s.CalculatedBy).WithMany().HasForeignKey(s => s.CalculatedById).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(s => s.ApprovedBy).WithMany().HasForeignKey(s => s.ApprovedById).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(s => s.TerminationType).HasConversion<int>();
+            entity.Property(s => s.Status).HasConversion<int>();
+        });
+
+        modelBuilder.Entity<AnnualBonus>(entity =>
+        {
+            entity.HasOne(ab => ab.CalculatedBy).WithMany().HasForeignKey(ab => ab.CalculatedById).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(ab => ab.ApprovedBy).WithMany().HasForeignKey(ab => ab.ApprovedById).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(ab => ab.Year).IsUnique();
+            entity.Property(ab => ab.Status).HasConversion<int>();
+        });
+
+        modelBuilder.Entity<AnnualBonusDetail>(entity =>
+        {
+            entity.HasIndex(abd => new { abd.AnnualBonusId, abd.EmployeeId }).IsUnique();
+        });
+
+        modelBuilder.Entity<PerformanceEvaluation>(entity =>
+        {
+            entity.HasOne(pe => pe.Evaluator).WithMany().HasForeignKey(pe => pe.EvaluatorId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(pe => pe.Status).HasConversion<int>();
+        });
+
+        modelBuilder.Entity<DisabilityRequest>(entity =>
+        {
+            entity.HasOne(dr => dr.ReviewedBy).WithMany().HasForeignKey(dr => dr.ReviewedById).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(dr => dr.Type).HasConversion<int>();
+            entity.Property(dr => dr.Status).HasConversion<int>();
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
