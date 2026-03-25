@@ -41,7 +41,8 @@ public class AuthService : IAuthService
             Username = user.Username,
             Role = user.Role.ToString(),
             UserId = user.Id,
-            EmployeeId = user.EmployeeId
+            EmployeeId = user.EmployeeId,
+            FullName = user.Employee?.FullName
         };
     }
 
@@ -60,7 +61,8 @@ public class AuthService : IAuthService
             Username = user.Username,
             Role = user.Role.ToString(),
             UserId = user.Id,
-            EmployeeId = user.EmployeeId
+            EmployeeId = user.EmployeeId,
+            FullName = user.Employee?.FullName
         };
     }
 

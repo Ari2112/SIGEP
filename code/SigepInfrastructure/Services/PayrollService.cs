@@ -107,8 +107,8 @@ public class PayrollService : IPayrollService
             // Horas extra aprobadas en el período
             var overtimeRecords = await _context.OvertimeRecords
                 .Where(o => o.EmployeeId == emp.Id
-                         && o.Date >= DateOnly.FromDateTime(startDate)
-                         && o.Date <= DateOnly.FromDateTime(endDate)
+                         && o.Date >= startDate
+                         && o.Date <= endDate
                          && o.Status == OvertimeStatus.Aprobada)
                 .ToListAsync();
 
@@ -174,16 +174,18 @@ public class PayrollService : IPayrollService
             detail.NetSalary = grossSalary - detailDeductions + detailBenefits;
 
             _context.PayrollDetails.Add(detail);
+            await _context.SaveChangesAsync(); // obtener detail.Id para linkear OT
 
             totalGross += grossSalary;
             totalDeductions += detailDeductions;
             totalBenefits += detailBenefits;
             totalNet += detail.NetSalary;
 
-            // Marcar horas extra como pagadas
+            // Marcar horas extra como pagadas y enlazar a este detalle de planilla
             foreach (var ot in overtimeRecords)
             {
                 ot.Status = OvertimeStatus.Pagada;
+                ot.PayrollDetailId = detail.Id;
                 ot.UpdatedAt = DateTime.UtcNow;
             }
         }

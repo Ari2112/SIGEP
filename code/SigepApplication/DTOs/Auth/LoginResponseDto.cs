@@ -7,4 +7,5 @@ public class LoginResponseDto
     public string Role { get; set; } = string.Empty;
     public int UserId { get; set; }
     public int? EmployeeId { get; set; }
+    public string? FullName { get; set; }
 }

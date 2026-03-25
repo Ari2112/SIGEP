@@ -1,7 +1,7 @@
 // ============ MOCK DATA - REMOVER EN PRODUCCIÓN ============
 // Este archivo contiene datos de ejemplo para probar la interfaz sin backend
 
-export const USE_MOCK = true; // Cambiar a false cuando el backend esté listo
+export const USE_MOCK = false; // Cambiar a false cuando el backend esté listo
 
 // Empleados
 export const mockEmployees = [

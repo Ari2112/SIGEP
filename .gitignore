@@ -1,14 +1,12 @@
 # ==================================================
-# SOLO SE SUBE EL CÓDIGO EN /code Y /frontend
+# SOLO SE SUBE EL CÓDIGO EN /code (incluye frontend/)
 # Todo lo demás (documentación, scripts de ayuda) se ignora
 # ==================================================
 
-# Ignorar todo en la raíz excepto code/, frontend/ y SigepDatabase/
+# Ignorar todo en la raíz excepto code/
 /*
 !/.gitignore
 !/code/
-!/frontend/
-!/SigepDatabase/
 
 # ==================================================
 # Archivos temporales y builds dentro de /code
@@ -84,47 +82,47 @@ code/**/.DS_Store
 code/**/Thumbs.db
 
 # ==================================================
-# Archivos temporales y builds dentro de /frontend
+# Archivos temporales y builds dentro de /code/frontend
 # ==================================================
 
 # Node.js
-frontend/**/node_modules/
-frontend/**/npm-debug.log*
-frontend/**/yarn-debug.log*
-frontend/**/yarn-error.log*
-frontend/**/.pnpm-debug.log*
+code/frontend/**/node_modules/
+code/frontend/**/npm-debug.log*
+code/frontend/**/yarn-debug.log*
+code/frontend/**/yarn-error.log*
+code/frontend/**/.pnpm-debug.log*
 
 # Build output
-frontend/**/dist/
-frontend/**/dist-ssr/
-frontend/**/build/
+code/frontend/**/dist/
+code/frontend/**/dist-ssr/
+code/frontend/**/build/
 
 # Environment variables
-frontend/**/.env
-frontend/**/.env.local
-frontend/**/.env.development.local
-frontend/**/.env.test.local
-frontend/**/.env.production.local
-frontend/**/*.local
+code/frontend/**/.env
+code/frontend/**/.env.local
+code/frontend/**/.env.development.local
+code/frontend/**/.env.test.local
+code/frontend/**/.env.production.local
+code/frontend/**/*.local
 
 # Logs
-frontend/**/*.log
-frontend/**/logs/
+code/frontend/**/*.log
+code/frontend/**/logs/
 
 # Temporary files
-frontend/**/*.swp
-frontend/**/*.swo
-frontend/**/*~
-frontend/**/.DS_Store
-frontend/**/Thumbs.db
-frontend/**/.idea/
+code/frontend/**/*.swp
+code/frontend/**/*.swo
+code/frontend/**/*~
+code/frontend/**/.DS_Store
+code/frontend/**/Thumbs.db
+code/frontend/**/.idea/
 
 # ==================================================
 # SE IGNORAN (no se suben al repo):
 # - documents/
 # - instructions/
 # - SIGEP ARI/
-# - README.md, INICIO-RAPIDO.md, COMANDOS.md
-# - *.ps1 (scripts PowerShell)
+# - README.md, COMANDOS.md, INICIO-RAPIDO.md
+# - *.bat, *.ps1 (scripts de arranque en raíz)
 # - Cualquier archivo en la raíz
 # ==================================================

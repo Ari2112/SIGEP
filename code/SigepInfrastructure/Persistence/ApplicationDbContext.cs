@@ -124,6 +124,10 @@ public class ApplicationDbContext : DbContext
                 .WithMany(a => a.OvertimeRecords)
                 .HasForeignKey(o => o.AttendanceId)
                 .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(o => o.PayrollDetail)
+                .WithMany()
+                .HasForeignKey(o => o.PayrollDetailId)
+                .OnDelete(DeleteBehavior.SetNull);
             entity.Property(o => o.Status).HasConversion<int>();
             entity.Property(o => o.DetectionType).HasConversion<int>();
         });

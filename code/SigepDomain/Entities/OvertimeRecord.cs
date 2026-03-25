@@ -17,6 +17,7 @@ public class OvertimeRecord
     public int? ReviewedById { get; set; }
     public DateTime? ReviewedAt { get; set; }
     public string? ReviewComments { get; set; }
+    public int? PayrollDetailId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
@@ -24,6 +25,7 @@ public class OvertimeRecord
     public Employee? Employee { get; set; }
     public AttendanceRecord? Attendance { get; set; }
     public User? ReviewedBy { get; set; }
+    public PayrollDetail? PayrollDetail { get; set; }
 }
 
 public enum OvertimeStatus
