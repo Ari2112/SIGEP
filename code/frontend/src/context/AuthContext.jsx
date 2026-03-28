@@ -11,7 +11,7 @@ const MOCK_USERS = {
   'juan.perez': { id: 4, username: 'juan.perez', role: 'Empleado', employeeId: 4, fullName: 'Juan Pérez', token: 'mock-token-empleado' },
 };
 const MOCK_PASSWORD = 'admin123';
-const USE_MOCK = true; // Cambiar a false cuando el backend esté listo
+const USE_MOCK = false; // Cambiar a false cuando el backend esté listo
 // ============ FIN MOCK DATA ============
 
 export const AuthProvider = ({ children }) => {

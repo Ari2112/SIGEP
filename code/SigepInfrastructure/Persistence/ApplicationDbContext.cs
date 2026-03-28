@@ -63,7 +63,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Employee>(entity =>
         {
             entity.HasOne(e => e.Supervisor)
-                .WithMany()
+                .WithMany(e => e.Subordinates)
                 .HasForeignKey(e => e.SupervisorId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => e.IdentificationNumber).IsUnique();
@@ -81,19 +81,35 @@ public class ApplicationDbContext : DbContext
         {
             entity.Property(v => v.AvailableDays)
                 .HasComputedColumnSql("[TotalDays] - [UsedDays] - [PendingDays]", stored: true);
+            entity.Property(v => v.CarriedOverDays).HasColumnName("CarryOverDays");
             entity.HasIndex(v => new { v.EmployeeId, v.Year }).IsUnique();
         });
 
         modelBuilder.Entity<VacationRequest>(entity =>
         {
+            entity.Property(v => v.RequestedDays).HasColumnName("TotalDays");
+            entity.Property(v => v.Reason).HasColumnName("Comments");
+            entity.Property(v => v.ApprovedByUserId).HasColumnName("ReviewedById");
+            entity.Property(v => v.ApprovedAt).HasColumnName("ReviewedAt");
+            entity.Property(v => v.ApproverComments).HasColumnName("ReviewComments");
             entity.HasOne(v => v.ApprovedByUser)
                 .WithMany()
                 .HasForeignKey(v => v.ApprovedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<PermissionType>(entity =>
+        {
+            entity.Property(pt => pt.RequiresDocument).HasColumnName("RequiresApproval");
+        });
+
         modelBuilder.Entity<PermissionRequest>(entity =>
         {
+            entity.Property(p => p.DurationDays).HasColumnName("TotalDays");
+            entity.Property(p => p.DocumentUrl).HasColumnName("AttachmentPath");
+            entity.Property(p => p.ApprovedByUserId).HasColumnName("ReviewedById");
+            entity.Property(p => p.ApprovedAt).HasColumnName("ReviewedAt");
+            entity.Property(p => p.ApproverComments).HasColumnName("ReviewComments");
             entity.HasOne(p => p.ApprovedByUser)
                 .WithMany()
                 .HasForeignKey(p => p.ApprovedByUserId)
@@ -102,6 +118,7 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<VacationRequestHistory>(entity =>
         {
+            entity.Property(h => h.ChangedByUserId).HasColumnName("ChangedById");
             entity.HasOne(h => h.ChangedByUser)
                 .WithMany()
                 .HasForeignKey(h => h.ChangedByUserId)

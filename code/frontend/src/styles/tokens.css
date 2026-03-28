@@ -1,7 +1,9 @@
 /*
  * ====================================================
  * SIGEP — Design Tokens
- * Archivo central de tokens de diseño.
+ * Centro Agrícola Cantonal Coronado
+ * Paleta extraída del logo corporativo: verde bosque → verde lima,
+ * silueta de res y hojas. Evoca campo, frescura y sostenibilidad.
  * Para cambiar el look & feel del sistema, edita SOLO este archivo.
  * ====================================================
  */
@@ -9,74 +11,80 @@
 :root {
 
   /* --------------------------------------------------
-   * COLORES — Paleta de marca
+   * COLORES — Paleta de marca (Verde Agrícola)
    * -------------------------------------------------- */
 
-  /* Primary (Indigo/Purple) */
-  --c-primary:        #667eea;
-  --c-primary-hover:  #5a67d8;
-  --c-primary-dark:   #4c51bf;
-  --c-primary-accent: #764ba2;
+  /* Primary — Verde Lima (CTA, botones, elementos activos) */
+  --c-primary:        #7DC221;
+  --c-primary-hover:  #4E9A28;
+  --c-primary-dark:   #2D6A1F;
+  --c-primary-accent: #A3C41A;
 
-  /* Gradiente de marca (login, balance card, barras) */
-  --grad-brand: linear-gradient(135deg, var(--c-primary) 0%, var(--c-primary-accent) 100%);
-  --grad-brand-h: linear-gradient(135deg, var(--c-primary-hover) 0%, #6b3fa0 100%);
+  /* Gradientes de marca */
+  --grad-brand:   linear-gradient(135deg, #2D6A1F 0%, #7DC221 100%);
+  --grad-brand-h: linear-gradient(135deg, #4E9A28 0%, #A3C41A 100%);
+  --grad-hero:    linear-gradient(135deg, #2D6A1F 0%, #4E9A28 50%, #7DC221 100%);
+  --grad-button:  linear-gradient(90deg, #4E9A28 0%, #7DC221 100%);
 
   /* Success */
-  --c-success:        #10b981;
-  --c-success-hover:  #059669;
-  --c-success-bg:     #d1fae5;
-  --c-success-text:   #065f46;
+  --c-success:        #4CAF50;
+  --c-success-hover:  #388E3C;
+  --c-success-bg:     #D4EDAC;
+  --c-success-text:   #2D6A1F;
 
   /* Danger */
-  --c-danger:         #ef4444;
-  --c-danger-hover:   #dc2626;
-  --c-danger-bg:      #fee2e2;
-  --c-danger-text:    #991b1b;
-  --c-danger-border:  #fecaca;
+  --c-danger:         #D32F2F;
+  --c-danger-hover:   #B71C1C;
+  --c-danger-bg:      #FFEBEE;
+  --c-danger-text:    #C62828;
+  --c-danger-border:  #FFCDD2;
 
   /* Warning */
-  --c-warning:        #f59e0b;
-  --c-warning-hover:  #d97706;
-  --c-warning-bg:     #fef3c7;
-  --c-warning-text:   #92400e;
+  --c-warning:        #F9A825;
+  --c-warning-hover:  #F57F17;
+  --c-warning-bg:     #FFF8C5;
+  --c-warning-text:   #7A5F00;
 
   /* Info */
-  --c-info:           #3b82f6;
-  --c-info-hover:     #2563eb;
-  --c-info-bg:        #dbeafe;
-  --c-info-text:      #1e40af;
+  --c-info:           #1976D2;
+  --c-info-hover:     #0D47A1;
+  --c-info-bg:        #E3F2FD;
+  --c-info-text:      #0D47A1;
 
-  /* Secondary (neutral) */
-  --c-secondary:        #e2e8f0;
-  --c-secondary-hover:  #cbd5e0;
-  --c-secondary-text:   #4a5568;
+  /* Secondary (verde suave) */
+  --c-secondary:        #E2E8D9;
+  --c-secondary-hover:  #D4EDAC;
+  --c-secondary-text:   #3D4D35;
 
   /* --------------------------------------------------
-   * COLORES — Neutros
+   * COLORES — Neutros (tonos verdes naturales)
    * -------------------------------------------------- */
-  --c-white:      #ffffff;
-  --c-bg:         #f1f5f9;       /* fondo de la app */
-  --c-surface:    #ffffff;       /* superficie de cards */
-  --c-border:     #e2e8f0;
-  --c-border-2:   #cbd5e0;
+  --c-white:    #ffffff;
+  --c-bg:       #F5F7F2;    /* fondo general de la app */
+  --c-surface:  #ffffff;    /* cards, modales, inputs */
+  --c-border:   #E2E8D9;
+  --c-border-2: #D4EDAC;
 
   /* Textos */
-  --c-text:       #1e293b;       /* título / cuerpo principal */
-  --c-text-2:     #4a5568;       /* subtítulos */
-  --c-text-3:     #718096;       /* labels / secundario */
-  --c-text-4:     #94a3b8;       /* muted / placeholders */
+  --c-text:   #3D4D35;      /* texto principal */
+  --c-text-2: #4D5D44;      /* subtítulos */
+  --c-text-3: #8A9E7C;      /* labels / secundario */
+  --c-text-4: #A8B89C;      /* muted / placeholders */
 
-  /* Header de la app */
-  --c-header-bg:    #1e293b;
-  --c-header-text:  #f8fafc;
-  --c-header-link:  #94a3b8;
-  --c-header-link-hover: #f8fafc;
+  /* Sidebar */
+  --c-header-bg:         #2D6A1F;   /* Verde Bosque */
+  --c-header-text:       #FFFFFF;
+  --c-header-link:       #D4EDAC;   /* Verde Menta */
+  --c-header-link-hover: #FFFFFF;
 
   /* --------------------------------------------------
    * TIPOGRAFÍA
+   * Google Fonts: Nunito (headings) + Source Sans 3 (body)
    * -------------------------------------------------- */
-  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', system-ui, sans-serif;
+  --font-heading: 'Nunito', 'Segoe UI', sans-serif;
+  --font-body:    'Source Sans 3', 'Helvetica Neue', sans-serif;
+  --font-mono:    'JetBrains Mono', 'Courier New', monospace;
+  --font: var(--font-body);
 
   --text-xs:   0.75rem;    /* 12px */
   --text-sm:   0.875rem;   /* 14px */
@@ -87,13 +95,15 @@
   --text-3xl:  1.875rem;   /* 30px */
   --text-4xl:  2.25rem;    /* 36px */
 
-  --fw-normal:  400;
-  --fw-medium:  500;
-  --fw-semibold: 600;
-  --fw-bold:    700;
+  --fw-light:     300;
+  --fw-normal:    400;
+  --fw-medium:    500;
+  --fw-semibold:  600;
+  --fw-bold:      700;
+  --fw-extrabold: 800;
 
-  --leading-tight:  1.25;
-  --leading-normal: 1.5;
+  --leading-tight:   1.25;
+  --leading-normal:  1.5;
   --leading-relaxed: 1.625;
 
   /* --------------------------------------------------
@@ -121,13 +131,13 @@
   --r-full: 9999px;
 
   /* --------------------------------------------------
-   * SOMBRAS
+   * SOMBRAS (tonalizadas en verde bosque)
    * -------------------------------------------------- */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow:    0 1px 3px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
-  --shadow-lg: 0 10px 15px rgba(0,0,0,0.10), 0 4px 6px rgba(0,0,0,0.05);
-  --shadow-xl: 0 20px 25px rgba(0,0,0,0.10), 0 10px 10px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 4px  rgba(45, 106, 31, 0.08);
+  --shadow:    0 2px 8px  rgba(45, 106, 31, 0.10);
+  --shadow-md: 0 4px 12px rgba(45, 106, 31, 0.12);
+  --shadow-lg: 0 6px 24px rgba(45, 106, 31, 0.16);
+  --shadow-xl: 0 12px 40px rgba(45, 106, 31, 0.22);
 
   /* --------------------------------------------------
    * TRANSICIONES
@@ -146,6 +156,6 @@
   /* --------------------------------------------------
    * LAYOUT
    * -------------------------------------------------- */
-  --header-h:   60px;
-  --container:  1200px;
+  --header-h:  60px;
+  --container: 1200px;
 }

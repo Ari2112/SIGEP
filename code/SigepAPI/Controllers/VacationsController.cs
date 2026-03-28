@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SigepApplication.DTOs.Vacations;
 using SigepApplication.Interfaces;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 
 namespace SigepAPI.Controllers;
 
@@ -12,10 +13,12 @@ namespace SigepAPI.Controllers;
 public class VacationsController : ControllerBase
 {
     private readonly IVacationService _vacationService;
+    private readonly ILogger<VacationsController> _logger;
 
-    public VacationsController(IVacationService vacationService)
+    public VacationsController(IVacationService vacationService, ILogger<VacationsController> logger)
     {
         _vacationService = vacationService;
+        _logger = logger;
     }
 
     private int GetUserId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -33,20 +36,25 @@ public class VacationsController : ControllerBase
     [HttpGet("balance")]
     public async Task<ActionResult<VacationBalanceDto>> GetMyBalance([FromQuery] int? year)
     {
-        var employeeId = GetEmployeeId();
-        if (!employeeId.HasValue)
-            return BadRequest(new { message = "Usuario no tiene empleado asociado" });
-
-        var targetYear = year ?? DateTime.Now.Year;
-        var balance = await _vacationService.GetBalanceAsync(employeeId.Value, targetYear);
-        
-        if (balance == null)
+        try
         {
-            // Inicializar saldo si no existe
-            balance = await _vacationService.InitializeBalanceAsync(employeeId.Value, targetYear);
+            var employeeId = GetEmployeeId();
+            if (!employeeId.HasValue)
+                return BadRequest(new { message = "Usuario no tiene empleado asociado" });
+
+            var targetYear = year ?? DateTime.Now.Year;
+            var balance = await _vacationService.GetBalanceAsync(employeeId.Value, targetYear);
+
+            if (balance == null)
+                balance = await _vacationService.InitializeBalanceAsync(employeeId.Value, targetYear);
+
+            return Ok(balance);
         }
-        
-        return Ok(balance);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo balance de vacaciones");
+            return StatusCode(500, new { message = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     /// <summary>
@@ -56,13 +64,21 @@ public class VacationsController : ControllerBase
     [Authorize(Roles = "Admin,RRHH,Jefatura")]
     public async Task<ActionResult<VacationBalanceDto>> GetEmployeeBalance(int employeeId, [FromQuery] int? year)
     {
-        var targetYear = year ?? DateTime.Now.Year;
-        var balance = await _vacationService.GetBalanceAsync(employeeId, targetYear);
-        
-        if (balance == null)
-            return NotFound(new { message = "No se encontró saldo de vacaciones para este año" });
-        
-        return Ok(balance);
+        try
+        {
+            var targetYear = year ?? DateTime.Now.Year;
+            var balance = await _vacationService.GetBalanceAsync(employeeId, targetYear);
+
+            if (balance == null)
+                return NotFound(new { message = "No se encontró saldo de vacaciones para este año" });
+
+            return Ok(balance);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo balance de vacaciones para empleado {EmployeeId}", employeeId);
+            return StatusCode(500, new { message = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     /// <summary>
@@ -173,6 +189,11 @@ public class VacationsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return Conflict(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creando solicitud de vacaciones");
+            return StatusCode(500, new { message = ex.Message, type = ex.GetType().Name });
         }
     }
 

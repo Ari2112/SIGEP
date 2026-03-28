@@ -101,9 +101,10 @@
 }
 
 .nav-item.active {
-  background: var(--grad-brand);
+  background: rgba(125, 194, 33, 0.20);
+  border-left: 3px solid var(--c-primary);
   color: white;
-  box-shadow: 0 2px 8px rgba(102,126,234,0.4);
+  padding-left: calc(var(--sp-3) - 3px);
 }
 
 .nav-icon {
@@ -275,7 +276,7 @@
 
 .topbar-avatar:hover {
   border-color: var(--c-primary);
-  box-shadow: 0 0 0 3px rgba(102,126,234,0.2);
+  box-shadow: 0 0 0 3px rgba(125, 194, 33, 0.25);
 }
 
 .topbar-avatar img {

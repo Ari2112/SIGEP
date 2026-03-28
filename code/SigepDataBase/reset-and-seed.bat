@@ -38,7 +38,7 @@ if %errorlevel% neq 0 (
 )
 
 echo [2/3] Ejecutando reset.sql (DROP + CREATE + Schema + Seed)...
-sqlcmd -S "%DB_SERVER%" -i "%SQL_SCRIPT%" -b
+sqlcmd -S "%DB_SERVER%" -i "%SQL_SCRIPT%" -I -b
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Fallo la ejecucion del script SQL.

@@ -43,9 +43,9 @@ function App() {
             path="*"
             element={
               <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'system-ui' }}>
-                <h1 style={{ fontSize: '3rem', color: '#667eea' }}>404</h1>
+                <h1 style={{ fontSize: '3rem', color: '#2D6A1F' }}>404</h1>
                 <p>Página no encontrada</p>
-                <a href="/dashboard" style={{ color: '#667eea' }}>← Volver al inicio</a>
+                <a href="/dashboard" style={{ color: '#7DC221' }}>← Volver al inicio</a>
               </div>
             }
           />

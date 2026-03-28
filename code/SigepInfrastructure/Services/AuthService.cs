@@ -33,7 +33,7 @@ public class AuthService : IAuthService
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             return null;
 
-        var token = GenerateJwtToken(user.Id, user.Username, user.Role.ToString());
+        var token = GenerateJwtToken(user.Id, user.Username, user.Role.ToString(), user.EmployeeId);
 
         return new LoginResponseDto
         {
@@ -66,25 +66,27 @@ public class AuthService : IAuthService
         };
     }
 
-    private string GenerateJwtToken(int userId, string username, string role)
+    private string GenerateJwtToken(int userId, string username, string role, int? employeeId = null)
     {
         var jwtSettings = _configuration.GetSection("JwtSettings");
         var secretKey = jwtSettings["SecretKey"] ?? "MySecretKeyForSigepSystem2026VeryLongAndSecure123!";
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new Claim(JwtRegisteredClaimNames.UniqueName, username),
             new Claim(ClaimTypes.Role, role),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+        if (employeeId.HasValue)
+            claims.Add(new Claim("EmployeeId", employeeId.Value.ToString()));
 
         var token = new JwtSecurityToken(
             issuer: jwtSettings["Issuer"] ?? "SigepAPI",
             audience: jwtSettings["Audience"] ?? "SigepClient",
-            claims: claims,
+            claims: claims.ToArray(),
             expires: DateTime.UtcNow.AddHours(8),
             signingCredentials: credentials
         );

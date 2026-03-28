@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SigepApplication.DTOs.Disability;
 using SigepApplication.Interfaces;
 using SigepDomain.Entities;
+using SigepDomain.Enums;
 using SigepInfrastructure.Persistence;
 
 namespace SigepInfrastructure.Services;

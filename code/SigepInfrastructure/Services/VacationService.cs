@@ -77,10 +77,10 @@ public class VacationService : IVacationService
             throw new InvalidOperationException($"Ya existe un saldo para el año {year}");
 
         // Obtener días acarreados del año anterior
-        decimal carriedOver = 0;
+        int carriedOver = 0;
         var previousBalance = await _context.VacationBalances
             .FirstOrDefaultAsync(vb => vb.EmployeeId == employeeId && vb.Year == year - 1);
-        
+
         if (previousBalance != null && previousBalance.AvailableDays > 0)
         {
             // Máximo 5 días de acarreo (configurable)

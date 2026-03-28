@@ -33,8 +33,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasConversion<int>();
 
         builder.HasOne(u => u.Employee)
-            .WithMany()
-            .HasForeignKey(u => u.EmployeeId)
+            .WithOne(e => e.User)
+            .HasForeignKey<User>(u => u.EmployeeId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

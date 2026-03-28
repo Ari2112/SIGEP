@@ -63,6 +63,11 @@ public class SettlementController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculando liquidación");
+            return StatusCode(500, new { message = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     /// <summary>Aprueba una liquidación (HU-6.2)</summary>

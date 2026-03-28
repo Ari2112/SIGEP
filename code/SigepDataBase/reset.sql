@@ -221,6 +221,7 @@ CREATE TABLE PermissionRequests (
     EndDate DATE NOT NULL,
     StartTime TIME NULL,
     EndTime TIME NULL,
+    IsPartialDay BIT NOT NULL DEFAULT 0,
     TotalDays DECIMAL(5,2) NOT NULL,
     Reason NVARCHAR(1000) NOT NULL,
     Status INT NOT NULL DEFAULT 1,
@@ -614,16 +615,16 @@ VALUES
     (10, 'Sofía', 'Castro', '909990999', 'sofia.castro@sigep.com', '8888-9999', 'San José, Costa Rica', '1994-06-22', '2024-06-01', 600000.00, 1, 4, 1, 2, 14);
 SET IDENTITY_INSERT Employees OFF;
 
--- Usuarios (Password: admin123)
+-- Usuarios (Password: admin123) - Hashes generados con BCrypt.Net-Next 4.0.3
 SET IDENTITY_INSERT Users ON;
 INSERT INTO Users (Id, Username, Email, PasswordHash, Role, IsActive, EmployeeId)
-VALUES 
-    (1, 'admin', 'admin@sigep.com', '$2a$11$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.S5rKHOxYqYuASG', 1, 1, 1),
-    (2, 'rrhh', 'maria.gonzalez@sigep.com', '$2a$11$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.S5rKHOxYqYuASG', 2, 1, 2),
-    (3, 'juan.perez', 'juan.perez@sigep.com', '$2a$11$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.S5rKHOxYqYuASG', 4, 1, 3),
-    (4, 'ana.rodriguez', 'ana.rodriguez@sigep.com', '$2a$11$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.S5rKHOxYqYuASG', 4, 1, 4),
-    (5, 'carlos.martinez', 'carlos.martinez@sigep.com', '$2a$11$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.S5rKHOxYqYuASG', 4, 1, 5),
-    (6, 'supervisor', 'roberto.sanchez@sigep.com', '$2a$11$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.S5rKHOxYqYuASG', 3, 1, 7);
+VALUES
+    (1, 'admin', 'admin@sigep.com', '$2a$11$sEUzH349uRMDaEO4iPWL2eaONACX4sKh6iWChjT8cF729DkL90F5m', 1, 1, 1),
+    (2, 'rrhh', 'maria.gonzalez@sigep.com', '$2a$11$T39MbScZqlmFcXTad8xzkeZLQfKFOFiyo7nDYIM0ab2P420B7.qPe', 2, 1, 2),
+    (3, 'juan.perez', 'juan.perez@sigep.com', '$2a$11$86uE9xSLcGmShQvLQB9M7OmQCXSIm/qcrETSuTDwCqgvI187Z26wG', 4, 1, 3),
+    (4, 'ana.rodriguez', 'ana.rodriguez@sigep.com', '$2a$11$F7b9Xearp1TrOZQFAhVLROmE8mzAzG4AGuQPZKFvYrdY07xZDPUz.', 4, 1, 4),
+    (5, 'carlos.martinez', 'carlos.martinez@sigep.com', '$2a$11$8PsD2aXT3ijh6C9aHyP3f.WVR9lELas8GJdeiH1eW.6OWDABHCkBG', 4, 1, 5),
+    (6, 'supervisor', 'roberto.sanchez@sigep.com', '$2a$11$QhT3/pi/UesmCqPx99vppOuvGiw1qMQ4znU18XXnrnGzXOh5zqxVG', 3, 1, 7);
 SET IDENTITY_INSERT Users OFF;
 
 -- Saldos de Vacaciones

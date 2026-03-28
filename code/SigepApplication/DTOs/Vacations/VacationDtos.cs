@@ -26,12 +26,12 @@ public class VacationBalanceDto
     public int EmployeeId { get; set; }
     public string? EmployeeName { get; set; }
     public int Year { get; set; }
-    public decimal TotalDays { get; set; }
-    public decimal UsedDays { get; set; }
-    public decimal PendingDays { get; set; }
-    public decimal AvailableDays { get; set; }
-    public decimal CarriedOverDays { get; set; }
-    public DateTime ExpirationDate { get; set; }
+    public int TotalDays { get; set; }
+    public int UsedDays { get; set; }
+    public int PendingDays { get; set; }
+    public int AvailableDays { get; set; }
+    public int CarriedOverDays { get; set; }
+    public DateTime? ExpirationDate { get; set; }
 }
 
 public class CreateVacationRequestDto

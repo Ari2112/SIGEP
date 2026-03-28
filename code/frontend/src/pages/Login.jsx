@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import logoSIGEP from '../assets/logoSIGEP.jpeg';
 import './Login.css';
 
 const Login = () => {
@@ -30,8 +31,12 @@ const Login = () => {
   return (
     <div className="login-container">
       <div className="login-card">
+        <div className="login-logo">
+          <img src={logoSIGEP} alt="Logo Centro Agrícola Cantonal Coronado" />
+        </div>
         <h1 className="login-title">SIGEP</h1>
         <p className="login-subtitle">Sistema Integral de Gestión de Personal</p>
+        <p className="login-org">Centro Agrícola Cantonal Coronado</p>
 
         {error && (
           <div className="alert alert-error">
