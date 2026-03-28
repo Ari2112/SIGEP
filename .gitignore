@@ -1,128 +1,30 @@
-# ==================================================
-# SOLO SE SUBE EL CÓDIGO EN /code (incluye frontend/)
-# Todo lo demás (documentación, scripts de ayuda) se ignora
-# ==================================================
+# Librerías y dependencias
+**/node_modules/
+**/[Bb]in/
+**/[Oo]bj/
 
-# Ignorar todo en la raíz excepto code/
-/*
-!/.gitignore
-!/code/
+# Build outputs
+**/dist/
+**/dist-ssr/
+**/[Dd]ebug/
+**/[Rr]elease/
 
-# ==================================================
-# Archivos temporales y builds dentro de /code
-# ==================================================
+# Archivos temporales y del sistema
+**/.DS_Store
+**/Thumbs.db
+**/*.suo
+**/*.user
+**/.idea/
 
-# .NET - Build results
-code/**/[Dd]ebug/
-code/**/[Dd]ebugPublic/
-code/**/[Rr]elease/
-code/**/[Rr]eleases/
-code/**/x64/
-code/**/x86/
-code/**/build/
-code/**/bld/
-code/**/[Bb]in/
-code/**/[Oo]bj/
+# Claude Code (memoria local)
+/.claude/
 
-# .NET - User-specific files
-code/**/*.suo
-code/**/*.user
-code/**/*.userosscache
-code/**/*.sln.docstates
+# Secretos
+**/.env.local
+**/.env.production.local
+**/secrets.json
+**/*.pfx
+**/*.p12
 
-# Visual Studio profiler
-code/**/*.psess
-code/**/*.vsp
-code/**/*.vspx
-
-# ReSharper
-code/**/_ReSharper*/
-code/**/*.[Rr]e[Ss]harper
-code/**/*.DotSettings.user
-
-# JetBrains Rider
-code/**/.idea/
-code/**/*.sln.iml
-
-# Entity Framework - Solo archivos de base de datos, NO Migrations
-code/**/*.mdf
-code/**/*.ldf
-code/**/*.ndf
-
-# Database files
-code/**/*.db
-code/**/*.db-shm
-code/**/*.db-wal
-code/**/*.sqlite
-code/**/*.sqlite3
-
-# Logs
-code/**/*.log
-code/**/logs/
-
-# Environment variables con secretos
-code/**/.env
-code/**/.env.local
-code/**/.env.development.local
-code/**/.env.test.local
-code/**/.env.production.local
-code/**/appsettings.Production.json
-code/**/appsettings.Staging.json
-code/**/secrets.json
-
-# Certificate files
-code/**/*.pfx
-code/**/*.p12
-
-# Temporary files
-code/**/*.swp
-code/**/*.swo
-code/**/*~
-code/**/.DS_Store
-code/**/Thumbs.db
-
-# ==================================================
-# Archivos temporales y builds dentro de /code/frontend
-# ==================================================
-
-# Node.js
-code/frontend/**/node_modules/
-code/frontend/**/npm-debug.log*
-code/frontend/**/yarn-debug.log*
-code/frontend/**/yarn-error.log*
-code/frontend/**/.pnpm-debug.log*
-
-# Build output
-code/frontend/**/dist/
-code/frontend/**/dist-ssr/
-code/frontend/**/build/
-
-# Environment variables
-code/frontend/**/.env
-code/frontend/**/.env.local
-code/frontend/**/.env.development.local
-code/frontend/**/.env.test.local
-code/frontend/**/.env.production.local
-code/frontend/**/*.local
-
-# Logs
-code/frontend/**/*.log
-code/frontend/**/logs/
-
-# Temporary files
-code/frontend/**/*.swp
-code/frontend/**/*.swo
-code/frontend/**/*~
-code/frontend/**/.DS_Store
-code/frontend/**/Thumbs.db
-code/frontend/**/.idea/
-
-# ==================================================
-# SE IGNORAN (no se suben al repo):
-# - documents/
-# - instructions/
-# - SIGEP ARI/
-# - README.md, COMANDOS.md, INICIO-RAPIDO.md
-# - *.bat, *.ps1 (scripts de arranque en raíz)
-# - Cualquier archivo en la raíz
-# ==================================================
+# Archivos muy grandes
+*.zip
