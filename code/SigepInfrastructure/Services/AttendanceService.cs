@@ -12,7 +12,10 @@ public class AttendanceService : IAttendanceService
     private readonly IAuditService _auditService;
     private readonly IOvertimeService _overtimeService;
 
-    public AttendanceService(ApplicationDbContext context, IAuditService auditService, IOvertimeService overtimeService)
+    public AttendanceService(
+        ApplicationDbContext context,
+        IAuditService auditService,
+        IOvertimeService overtimeService)
     {
         _context = context;
         _auditService = auditService;
@@ -22,57 +25,80 @@ public class AttendanceService : IAttendanceService
     public async Task<AttendanceRecordDto?> GetTodayRecordAsync(int employeeId)
     {
         var today = DateTime.UtcNow.Date;
+
         var record = await _context.AttendanceRecords
             .Include(a => a.Employee)
+            .Include(a => a.AttendanceStatus)
             .FirstOrDefaultAsync(a => a.EmployeeId == employeeId && a.Date == today);
 
         return record == null ? null : MapToDto(record);
     }
 
-    public async Task<IEnumerable<AttendanceRecordDto>> GetEmployeeRecordsAsync(int employeeId, DateTime? dateFrom = null, DateTime? dateTo = null)
+    public async Task<IEnumerable<AttendanceRecordDto>> GetEmployeeRecordsAsync(
+        int employeeId,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null)
     {
         var query = _context.AttendanceRecords
             .Include(a => a.Employee)
+            .Include(a => a.AttendanceStatus)
             .Where(a => a.EmployeeId == employeeId)
             .AsQueryable();
 
         if (dateFrom.HasValue)
+        {
             query = query.Where(a => a.Date >= dateFrom.Value.Date);
-        if (dateTo.HasValue)
-            query = query.Where(a => a.Date <= dateTo.Value.Date);
+        }
 
-        return await query
+        if (dateTo.HasValue)
+        {
+            query = query.Where(a => a.Date <= dateTo.Value.Date);
+        }
+
+        var records = await query
             .OrderByDescending(a => a.Date)
-            .Select(a => MapToDto(a))
             .ToListAsync();
+
+        return records.Select(MapToDto);
     }
 
     public async Task<IEnumerable<AttendanceRecordDto>> GetAllRecordsAsync(AttendanceFilterDto? filter = null)
     {
         var query = _context.AttendanceRecords
             .Include(a => a.Employee)
+            .Include(a => a.AttendanceStatus)
             .AsQueryable();
 
         if (filter != null)
         {
             if (filter.EmployeeId.HasValue)
+            {
                 query = query.Where(a => a.EmployeeId == filter.EmployeeId.Value);
+            }
+
             if (filter.DateFrom.HasValue)
+            {
                 query = query.Where(a => a.Date >= filter.DateFrom.Value.Date);
+            }
+
             if (filter.DateTo.HasValue)
+            {
                 query = query.Where(a => a.Date <= filter.DateTo.Value.Date);
+            }
         }
 
-        return await query
+        var records = await query
             .OrderByDescending(a => a.Date)
             .ThenBy(a => a.Employee!.LastName)
-            .Select(a => MapToDto(a))
             .ToListAsync();
+
+        return records.Select(MapToDto);
     }
 
     public async Task<AttendanceRecordDto> CheckInAsync(int employeeId, int userId, string? notes = null)
     {
         var employee = await _context.Employees.FindAsync(employeeId);
+
         if (employee == null)
             throw new ArgumentException("Empleado no encontrado");
 
@@ -84,13 +110,16 @@ public class AttendanceService : IAttendanceService
         if (existing != null)
             throw new InvalidOperationException("Ya existe un registro de entrada para el día de hoy");
 
+        var parcialStatus = await GetAttendanceStatusAsync("Parcial");
+
         var now = DateTime.UtcNow;
+
         var record = new AttendanceRecord
         {
             EmployeeId = employeeId,
             Date = today,
             CheckInTime = now,
-            Status = AttendanceStatus.Parcial,
+            AttendanceStatusId = parcialStatus.Id,
             Notes = notes,
             CreatedAt = now
         };
@@ -98,18 +127,27 @@ public class AttendanceService : IAttendanceService
         _context.AttendanceRecords.Add(record);
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(userId, "CHECK_IN", "ASISTENCIA", "AttendanceRecord", record.Id,
-            description: $"Entrada registrada a las {now:HH:mm}");
+        await _auditService.LogAsync(
+            userId,
+            "CHECK_IN",
+            "ASISTENCIA",
+            "AttendanceRecord",
+            record.Id,
+            description: $"Entrada registrada a las {now:HH:mm}"
+        );
 
-        return await GetTodayRecordAsync(employeeId) ?? throw new Exception("Error al registrar entrada");
+        return await GetTodayRecordAsync(employeeId)
+            ?? throw new Exception("Error al registrar entrada");
     }
 
     public async Task<AttendanceRecordDto> CheckOutAsync(int employeeId, int userId, string? notes = null)
     {
         var today = DateTime.UtcNow.Date;
+
         var record = await _context.AttendanceRecords
             .Include(a => a.Employee)
                 .ThenInclude(e => e!.Schedule)
+            .Include(a => a.AttendanceStatus)
             .FirstOrDefaultAsync(a => a.EmployeeId == employeeId && a.Date == today);
 
         if (record == null)
@@ -118,25 +156,49 @@ public class AttendanceService : IAttendanceService
         if (record.CheckOutTime.HasValue)
             throw new InvalidOperationException("Ya existe un registro de salida para el día de hoy");
 
+        var completoStatus = await GetAttendanceStatusAsync("Completo");
+
         var now = DateTime.UtcNow;
+
         record.CheckOutTime = now;
-        record.Status = AttendanceStatus.Completo;
+        record.AttendanceStatusId = completoStatus.Id;
 
         if (record.CheckInTime.HasValue)
+        {
             record.WorkedHours = (decimal)(now - record.CheckInTime.Value).TotalHours;
+        }
 
         if (!string.IsNullOrEmpty(notes))
+        {
             record.Notes = notes;
+        }
 
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(userId, "CHECK_OUT", "ASISTENCIA", "AttendanceRecord", record.Id,
-            description: $"Salida registrada a las {now:HH:mm}, horas trabajadas: {record.WorkedHours:F2}");
+        await _auditService.LogAsync(
+            userId,
+            "CHECK_OUT",
+            "ASISTENCIA",
+            "AttendanceRecord",
+            record.Id,
+            description: $"Salida registrada a las {now:HH:mm}, horas trabajadas: {record.WorkedHours:F2}"
+        );
 
-        // Detectar horas extra automáticamente
         await _overtimeService.DetectOvertimeFromAttendanceAsync(record.Id);
 
-        return MapToDto(record);
+        return await GetTodayRecordAsync(employeeId)
+            ?? throw new Exception("Error al registrar salida");
+    }
+
+    private async Task<AttendanceStatus> GetAttendanceStatusAsync(string name)
+    {
+        var status = await _context.AttendanceStatuses
+            .FirstOrDefaultAsync(s => s.Name == name);
+
+        if (status == null)
+            throw new InvalidOperationException($"No existe el estado de asistencia: {name}");
+
+        return status;
     }
 
     private static AttendanceRecordDto MapToDto(AttendanceRecord a)
@@ -150,7 +212,7 @@ public class AttendanceService : IAttendanceService
             CheckInTime = a.CheckInTime,
             CheckOutTime = a.CheckOutTime,
             WorkedHours = a.WorkedHours,
-            Status = a.Status.ToString(),
+            Status = a.AttendanceStatus?.Name ?? string.Empty,
             Notes = a.Notes,
             CreatedAt = a.CreatedAt
         };

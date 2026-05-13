@@ -25,6 +25,7 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users
             .Include(u => u.Employee)
+            .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Username == username && u.IsActive);
 
         if (user == null)
@@ -33,13 +34,15 @@ public class AuthService : IAuthService
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             return null;
 
-        var token = GenerateJwtToken(user.Id, user.Username, user.Role.ToString(), user.EmployeeId);
+        string roleName = user.Role != null ? user.Role.Name : "Empleado";
+
+        var token = GenerateJwtToken(user.Id, user.Username, roleName, user.EmployeeId);
 
         return new LoginResponseDto
         {
             Token = token,
             Username = user.Username,
-            Role = user.Role.ToString(),
+            Role = roleName,
             UserId = user.Id,
             EmployeeId = user.EmployeeId,
             FullName = user.Employee?.FullName
@@ -50,16 +53,19 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users
             .Include(u => u.Employee)
+            .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
 
         if (user == null)
             return null;
 
+        string roleName = user.Role != null ? user.Role.Name : "Empleado";
+
         return new LoginResponseDto
         {
             Token = string.Empty,
             Username = user.Username,
-            Role = user.Role.ToString(),
+            Role = roleName,
             UserId = user.Id,
             EmployeeId = user.EmployeeId,
             FullName = user.Employee?.FullName
@@ -74,12 +80,15 @@ public class AuthService : IAuthService
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new List<Claim>
-        {
-            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new Claim(JwtRegisteredClaimNames.UniqueName, username),
-            new Claim(ClaimTypes.Role, role),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
+{
+    new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+    new Claim(JwtRegisteredClaimNames.UniqueName, username),
+    new Claim(ClaimTypes.Name, username),
+    new Claim(ClaimTypes.Role, role),
+    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+};
+
         if (employeeId.HasValue)
             claims.Add(new Claim("EmployeeId", employeeId.Value.ToString()));
 

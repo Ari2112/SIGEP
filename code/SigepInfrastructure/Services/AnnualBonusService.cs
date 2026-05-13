@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using SigepApplication.DTOs.AnnualBonus;
 using SigepApplication.Interfaces;
 using SigepDomain.Entities;
-using SigepDomain.Enums;
 using SigepInfrastructure.Persistence;
 
 namespace SigepInfrastructure.Services;
@@ -47,7 +46,9 @@ public class AnnualBonusService : IAnnualBonusService
         var bonus = await _context.AnnualBonuses
             .Include(ab => ab.CalculatedBy)
             .Include(ab => ab.ApprovedBy)
-            .Include(ab => ab.Details).ThenInclude(d => d.Employee).ThenInclude(e => e!.Position)
+            .Include(ab => ab.Details)
+                .ThenInclude(d => d.Employee)
+                    .ThenInclude(e => e!.Position)
             .FirstOrDefaultAsync(ab => ab.Year == year);
 
         return bonus == null ? null : MapToDto(bonus, true);
@@ -79,20 +80,21 @@ public class AnnualBonusService : IAnnualBonusService
         _context.AnnualBonuses.Add(bonus);
         await _context.SaveChangesAsync();
 
+        var activeStatus = await _context.EmployeeStatuses
+            .FirstAsync(es => es.Name == "Activo");
+
         var employees = await _context.Employees
             .Include(e => e.Position)
-            .Where(e => e.Status == EmployeeStatus.Activo && e.HireDate.Year <= dto.Year)
+            .Where(e => e.EmployeeStatusId == activeStatus.Id && e.HireDate.Year <= dto.Year)
             .ToListAsync();
 
         decimal totalAmount = 0;
 
         foreach (var emp in employees)
         {
-            // Meses trabajados en el año del aguinaldo
             int startMonth = emp.HireDate.Year == dto.Year ? emp.HireDate.Month : 1;
             int workedMonths = 12 - startMonth + 1;
 
-            // Salario promedio (simplificado: salario base)
             decimal averageSalary = emp.BaseSalary;
             decimal proportionalAmount = (averageSalary / 12) * workedMonths;
 
@@ -114,10 +116,17 @@ public class AnnualBonusService : IAnnualBonusService
 
         bonus.TotalAmount = totalAmount;
         bonus.TotalEmployees = employees.Count;
+
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(userId, "CALCULATE", "AGUINALDO", "AnnualBonus", bonus.Id,
-            description: $"Aguinaldo {dto.Year} calculado: {employees.Count} empleados, Total: {totalAmount:C}");
+        await _auditService.LogAsync(
+            userId,
+            "CALCULATE",
+            "AGUINALDO",
+            "AnnualBonus",
+            bonus.Id,
+            description: $"Aguinaldo {dto.Year} calculado: {employees.Count} empleados, Total: {totalAmount:C}"
+        );
 
         return (await GetByIdAsync(bonus.Id))!;
     }
@@ -137,8 +146,15 @@ public class AnnualBonusService : IAnnualBonusService
         bonus.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
-        await _auditService.LogAsync(userId, "APPROVE", "AGUINALDO", "AnnualBonus", id,
-            description: $"Aguinaldo {bonus.Year} aprobado");
+
+        await _auditService.LogAsync(
+            userId,
+            "APPROVE",
+            "AGUINALDO",
+            "AnnualBonus",
+            id,
+            description: $"Aguinaldo {bonus.Year} aprobado"
+        );
 
         return (await GetByIdAsync(id))!;
     }
@@ -153,13 +169,14 @@ public class AnnualBonusService : IAnnualBonusService
         if (bonus.Status == AnnualBonusStatus.Pagado)
             throw new InvalidOperationException("No se puede recalcular un aguinaldo pagado");
 
-        // Eliminar detalles anteriores
         _context.AnnualBonusDetails.RemoveRange(bonus.Details);
 
-        // Recalcular
+        var activeStatus = await _context.EmployeeStatuses
+            .FirstAsync(es => es.Name == "Activo");
+
         var employees = await _context.Employees
             .Include(e => e.Position)
-            .Where(e => e.Status == EmployeeStatus.Activo && e.HireDate.Year <= bonus.Year)
+            .Where(e => e.EmployeeStatusId == activeStatus.Id && e.HireDate.Year <= bonus.Year)
             .ToListAsync();
 
         decimal totalAmount = 0;
@@ -168,6 +185,7 @@ public class AnnualBonusService : IAnnualBonusService
         {
             int startMonth = emp.HireDate.Year == bonus.Year ? emp.HireDate.Month : 1;
             int workedMonths = 12 - startMonth + 1;
+
             decimal averageSalary = emp.BaseSalary;
             decimal proportionalAmount = Math.Round((averageSalary / 12) * workedMonths, 2);
 
@@ -182,6 +200,7 @@ public class AnnualBonusService : IAnnualBonusService
                 NetAmount = proportionalAmount,
                 CreatedAt = DateTime.UtcNow
             };
+
             _context.AnnualBonusDetails.Add(detail);
             totalAmount += proportionalAmount;
         }
@@ -192,8 +211,15 @@ public class AnnualBonusService : IAnnualBonusService
         bonus.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
-        await _auditService.LogAsync(userId, "RECALCULATE", "AGUINALDO", "AnnualBonus", id,
-            description: $"Aguinaldo {bonus.Year} recalculado");
+
+        await _auditService.LogAsync(
+            userId,
+            "RECALCULATE",
+            "AGUINALDO",
+            "AnnualBonus",
+            id,
+            description: $"Aguinaldo {bonus.Year} recalculado"
+        );
 
         return (await GetByIdAsync(id))!;
     }

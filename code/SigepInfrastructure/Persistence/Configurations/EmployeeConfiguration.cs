@@ -8,6 +8,8 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
 {
     public void Configure(EntityTypeBuilder<Employee> builder)
     {
+        builder.ToTable("Employees");
+
         builder.HasKey(e => e.Id);
 
         builder.Property(e => e.FirstName)
@@ -29,15 +31,16 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(e => e.Phone)
-            .HasMaxLength(20);
+        builder.HasIndex(e => e.Email)
+            .IsUnique();
 
         builder.Property(e => e.BaseSalary)
             .HasColumnType("decimal(18,2)");
 
-        builder.Property(e => e.Status)
-            .IsRequired()
-            .HasConversion<int>();
+        builder.HasOne(e => e.EmployeeStatus)
+            .WithMany(es => es.Employees)
+            .HasForeignKey(e => e.EmployeeStatusId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(e => e.Position)
             .WithMany(p => p.Employees)
@@ -48,5 +51,12 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
             .WithMany(s => s.Employees)
             .HasForeignKey(e => e.ScheduleId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(e => e.Supervisor)
+            .WithMany(e => e.Subordinates)
+            .HasForeignKey(e => e.SupervisorId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Ignore(e => e.FullName);
     }
 }

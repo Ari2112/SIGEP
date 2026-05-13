@@ -5,7 +5,6 @@ using Microsoft.OpenApi.Models;
 using SigepApplication.Interfaces;
 using SigepInfrastructure.Services;
 using SigepInfrastructure.Persistence;
-using SigepApplication.Interfaces;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
