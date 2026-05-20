@@ -111,10 +111,26 @@ public class SettlementService : ISettlementService
 
         decimal vacationAmount = pendingVacDays * dailySalary;
 
-        int monthsThisYear = terminationDate.Month;
-        decimal proportionalBonus = (lastSalary / 12) * monthsThisYear;
+int monthsThisYear = terminationDate.Month;
+decimal proportionalBonus = (lastSalary / 12) * monthsThisYear;
 
-        decimal severance = 0;
+// Preaviso - Art. 28 Código de Trabajo de Costa Rica
+decimal noticeAmount = 0;
+
+if (terminationType.HasSeverance || terminationType.Name.Contains("Responsabilidad"))
+{
+    int noticeDays = totalMonths switch
+    {
+        < 3 => 0,
+        < 6 => 7,
+        < 12 => 15,
+        < 36 => 30,
+        _ => 60
+    };
+    noticeAmount = Math.Round(dailySalary * noticeDays, 2);
+}
+
+decimal severance = 0;
 
         if (terminationType.HasSeverance)
         {
@@ -125,7 +141,7 @@ public class SettlementService : ISettlementService
         }
 
         decimal totalDeductions = dto.AdditionalDeductions.Sum(d => d.Amount);
-        decimal grossTotal = vacationAmount + proportionalBonus + severance;
+        decimal grossTotal = vacationAmount + proportionalBonus + noticeAmount + severance;
         decimal netTotal = grossTotal - totalDeductions;
 
         var settlement = new Settlement
@@ -142,6 +158,7 @@ public class SettlementService : ISettlementService
             PendingVacationDays = pendingVacDays,
             VacationAmount = vacationAmount,
             ProportionalBonus = proportionalBonus,
+            NoticeAmount = noticeAmount,
             SeveranceAmount = severance,
             OtherBenefits = 0,
             TotalDeductions = totalDeductions,
@@ -277,8 +294,9 @@ public class SettlementService : ISettlementService
             WorkedDays = s.WorkedDays,
             PendingVacationDays = s.PendingVacationDays,
             VacationAmount = s.VacationAmount,
-            ProportionalBonus = s.ProportionalBonus,
-            SeveranceAmount = s.SeveranceAmount,
+ProportionalBonus = s.ProportionalBonus,
+NoticeAmount = s.NoticeAmount,
+SeveranceAmount = s.SeveranceAmount,
             OtherBenefits = s.OtherBenefits,
             TotalDeductions = s.TotalDeductions,
             GrossTotal = s.GrossTotal,

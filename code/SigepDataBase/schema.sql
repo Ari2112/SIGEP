@@ -565,3 +565,23 @@ CREATE INDEX IX_PerformanceEvaluations_EvaluationDate ON PerformanceEvaluations(
 
 CREATE INDEX IX_DisabilityRequests_EmployeeId ON DisabilityRequests(EmployeeId);
 CREATE INDEX IX_DisabilityRequests_Status ON DisabilityRequests(Status);
+-- ============================================
+-- DATOS INICIALES (SEED)
+-- ============================================
+
+INSERT INTO DeductionTypes (Name, Description, IsPercentage, DefaultValue, IsActive, CreatedAt)
+VALUES
+    (N'CCSS - SEM (Obrero)', N'Seguro de Enfermedad y Maternidad - aporte obrero 5.5%', 1, 0.0550, 1, GETUTCDATE()),
+    (N'CCSS - IVM (Obrero)', N'Seguro de Invalidez, Vejez y Muerte - aporte obrero 4.0%', 1, 0.0400, 1, GETUTCDATE()),
+    (N'Banco Popular (Obrero)', N'Aporte obrero Banco Popular 1.0%', 1, 0.0100, 1, GETUTCDATE());
+
+INSERT INTO BenefitTypes (Name, Description, IsPercentage, DefaultValue, IsActive, CreatedAt)
+VALUES
+    (N'CCSS - SEM (Patronal)', N'Seguro SEM patronal 9.25%', 1, 0.0925, 1, GETUTCDATE()),
+    (N'CCSS - IVM (Patronal)', N'Seguro IVM patronal 5.42%', 1, 0.0542, 1, GETUTCDATE()),
+    (N'CCSS - Banco Popular (Patronal)', N'Banco Popular patronal 0.25%', 1, 0.0025, 1, GETUTCDATE()),
+    (N'IMAS', N'IMAS patronal 0.50%', 1, 0.0050, 1, GETUTCDATE()),
+    (N'INA', N'INA patronal 1.50%', 1, 0.0150, 1, GETUTCDATE()),
+    (N'ASFA / Asignaciones Familiares', N'Asignaciones Familiares 5.0%', 1, 0.0500, 1, GETUTCDATE()),
+    (N'FCL - Fondo Capitalización Laboral', N'FCL patronal 3.0% (Ley 7983)', 1, 0.0300, 1, GETUTCDATE()),
+    (N'INS - Riesgos del Trabajo', N'INS Riesgos del Trabajo 1.0%', 1, 0.0100, 1, GETUTCDATE());

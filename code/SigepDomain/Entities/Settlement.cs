@@ -28,9 +28,11 @@ public class Settlement
 
     public decimal VacationAmount { get; set; }
 
-    public decimal ProportionalBonus { get; set; }
+public decimal ProportionalBonus { get; set; }
 
-    public decimal SeveranceAmount { get; set; }
+public decimal NoticeAmount { get; set; }
+
+public decimal SeveranceAmount { get; set; }
 
     public decimal OtherBenefits { get; set; }
 

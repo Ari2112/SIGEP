@@ -62,8 +62,10 @@ public class AnnualBonusService : IAnnualBonusService
         if (existing != null)
             throw new InvalidOperationException($"Ya existe un aguinaldo calculado para el año {dto.Year}");
 
-        var periodStart = new DateTime(dto.Year, 12, 1);
-        var periodEnd = new DateTime(dto.Year, 12, 31);
+        // Período legal del aguinaldo en Costa Rica: 1 de diciembre del año anterior
+// al 30 de noviembre del año en curso (Código de Trabajo, Art. 229)
+var periodStart = new DateTime(dto.Year - 1, 12, 1);
+var periodEnd = new DateTime(dto.Year, 11, 30);
 
         var bonus = new AnnualBonus
         {
@@ -91,12 +93,18 @@ public class AnnualBonusService : IAnnualBonusService
         decimal totalAmount = 0;
 
         foreach (var emp in employees)
-        {
-            int startMonth = emp.HireDate.Year == dto.Year ? emp.HireDate.Month : 1;
-            int workedMonths = 12 - startMonth + 1;
+{
+    // Meses trabajados dentro del período legal (1 dic año anterior → 30 nov año en curso)
+    DateTime empStart = emp.HireDate > periodStart ? emp.HireDate : periodStart;
+    DateTime empEnd = periodEnd;
 
-            decimal averageSalary = emp.BaseSalary;
-            decimal proportionalAmount = (averageSalary / 12) * workedMonths;
+    int workedMonths = ((empEnd.Year - empStart.Year) * 12) + empEnd.Month - empStart.Month;
+    if (empStart.Day > 1) workedMonths--;
+    if (workedMonths < 0) workedMonths = 0;
+    if (workedMonths > 12) workedMonths = 12;
+
+    decimal averageSalary = emp.BaseSalary;
+    decimal proportionalAmount = Math.Round((averageSalary / 12m) * workedMonths, 2);
 
             var detail = new AnnualBonusDetail
             {

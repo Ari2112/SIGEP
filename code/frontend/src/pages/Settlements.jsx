@@ -277,13 +277,19 @@ function Settlements() {
                   <span>{formatCurrency(selected.vacationAmount)}</span>
                 </div>
                 <div className="breakdown-row">
-                  <span>Aguinaldo proporcional</span>
-                  <span>{formatCurrency(selected.proportionalBonus)}</span>
-                </div>
-                <div className="breakdown-row">
-                  <span>Indemnización / Preaviso</span>
-                  <span>{formatCurrency(selected.severanceAmount)}</span>
-                </div>
+  <span>Aguinaldo proporcional</span>
+  <span>{formatCurrency(selected.proportionalBonus)}</span>
+</div>
+{selected.noticeAmount > 0 && (
+  <div className="breakdown-row">
+    <span>Preaviso (Art. 28 Cód. Trabajo)</span>
+    <span>{formatCurrency(selected.noticeAmount)}</span>
+  </div>
+)}
+<div className="breakdown-row">
+  <span>Cesantía / Auxilio de cesantía</span>
+  <span>{formatCurrency(selected.severanceAmount)}</span>
+</div>
                 {selected.deductions?.map(d => (
                   <div key={d.id} className="breakdown-row deduction">
                     <span>(-) {d.description}</span>

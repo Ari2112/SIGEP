@@ -15,8 +15,9 @@ public static class DbInitializer
         {
             await context.UserRoles.AddRangeAsync(
                 new UserRole { Name = "Admin", Description = "Administrador del sistema", IsActive = true },
-                new UserRole { Name = "RRHH", Description = "Usuario de Recursos Humanos", IsActive = true },
-                new UserRole { Name = "Empleado", Description = "Empleado regular", IsActive = true }
+new UserRole { Name = "RRHH", Description = "Usuario de Recursos Humanos", IsActive = true },
+new UserRole { Name = "Jefatura", Description = "Jefatura inmediata - aprueba solicitudes de su equipo", IsActive = true },
+new UserRole { Name = "Empleado", Description = "Empleado regular", IsActive = true }
             );
 
             await context.SaveChangesAsync();
@@ -173,7 +174,128 @@ public static class DbInitializer
 
             await context.SaveChangesAsync();
         }
+// =========================
+// DEDUCCIONES LEGALES CR
+// =========================
 
+if (!await context.DeductionTypes.AnyAsync())
+{
+    await context.DeductionTypes.AddRangeAsync(
+        new DeductionType
+        {
+            Name = "CCSS - SEM (Obrero)",
+            Description = "Seguro de Enfermedad y Maternidad - aporte obrero 5.5% sobre salario bruto",
+            IsPercentage = true,
+            DefaultValue = 0.0550m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        },
+        new DeductionType
+        {
+            Name = "CCSS - IVM (Obrero)",
+            Description = "Seguro de Invalidez, Vejez y Muerte - aporte obrero 4.0% sobre salario bruto",
+            IsPercentage = true,
+            DefaultValue = 0.0400m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        },
+        new DeductionType
+        {
+            Name = "Banco Popular (Obrero)",
+            Description = "Aporte obrero al Banco Popular y de Desarrollo Comunal - 1.0% sobre salario bruto",
+            IsPercentage = true,
+            DefaultValue = 0.0100m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        }
+    );
+
+    await context.SaveChangesAsync();
+}
+
+// =========================
+// BENEFICIOS / CARGAS PATRONALES CR
+// =========================
+
+if (!await context.BenefitTypes.AnyAsync())
+{
+    await context.BenefitTypes.AddRangeAsync(
+        new BenefitType
+        {
+            Name = "CCSS - SEM (Patronal)",
+            Description = "Seguro de Enfermedad y Maternidad - aporte patronal 9.25% sobre salario bruto",
+            IsPercentage = true,
+            DefaultValue = 0.0925m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        },
+        new BenefitType
+        {
+            Name = "CCSS - IVM (Patronal)",
+            Description = "Seguro de Invalidez, Vejez y Muerte - aporte patronal 5.42% sobre salario bruto",
+            IsPercentage = true,
+            DefaultValue = 0.0542m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        },
+        new BenefitType
+        {
+            Name = "CCSS - Banco Popular (Patronal)",
+            Description = "Aporte patronal Banco Popular 0.25% sobre salario bruto",
+            IsPercentage = true,
+            DefaultValue = 0.0025m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        },
+        new BenefitType
+        {
+            Name = "IMAS",
+            Description = "Instituto Mixto de Ayuda Social - aporte patronal 0.50% sobre salario bruto",
+            IsPercentage = true,
+            DefaultValue = 0.0050m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        },
+        new BenefitType
+        {
+            Name = "INA",
+            Description = "Instituto Nacional de Aprendizaje - aporte patronal 1.50% sobre salario bruto",
+            IsPercentage = true,
+            DefaultValue = 0.0150m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        },
+        new BenefitType
+        {
+            Name = "ASFA / Asignaciones Familiares",
+            Description = "Fondo de Asignaciones Familiares - aporte patronal 5.0% sobre salario bruto",
+            IsPercentage = true,
+            DefaultValue = 0.0500m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        },
+        new BenefitType
+        {
+            Name = "FCL - Fondo Capitalización Laboral",
+            Description = "Fondo de Capitalización Laboral - aporte patronal 3.0% (Ley 7983)",
+            IsPercentage = true,
+            DefaultValue = 0.0300m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        },
+        new BenefitType
+        {
+            Name = "INS - Riesgos del Trabajo",
+            Description = "Seguro de Riesgos del Trabajo INS - tasa 1.0% (variable por empresa)",
+            IsPercentage = true,
+            DefaultValue = 0.0100m,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        }
+    );
+
+    await context.SaveChangesAsync();
+}
         // =========================
         // HORARIOS
         // =========================

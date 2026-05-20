@@ -193,8 +193,9 @@ public class PayrollService : IPayrollService
             }
 
             detail.TotalDeductions = detailDeductions;
-            detail.TotalBenefits = detailBenefits;
-            detail.NetSalary = grossSalary - detailDeductions + detailBenefits;
+detail.TotalBenefits = detailBenefits;
+// Cargas patronales son costo del patrono, NO se suman al neto del empleado
+detail.NetSalary = grossSalary - detailDeductions;
 
             _context.PayrollDetails.Add(detail);
             await _context.SaveChangesAsync();

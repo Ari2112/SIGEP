@@ -43,14 +43,23 @@ export const AuthProvider = ({ children }) => {
     // ============ FIN MOCK LOGIN ============
 
     try {
-      const response = await authAPI.login(username, password);
-      const userData = response.data;
-      
-      localStorage.setItem('token', userData.token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-      
-      return { success: true };
+    const response = await authAPI.login(username, password);
+const data = response.data;
+
+const userData = {
+  id:         data.userId     ?? data.UserId     ?? data.id,
+  username:   data.username   ?? data.Username   ?? username,
+  role:       data.role       ?? data.Role       ?? 'Empleado',
+  employeeId: data.employeeId ?? data.EmployeeId ?? null,
+  fullName:   data.fullName   ?? data.FullName   ?? '',
+  token:      data.token      ?? data.Token      ?? '',
+};
+
+localStorage.setItem('token', userData.token);
+localStorage.setItem('user', JSON.stringify(userData));
+setUser(userData);
+
+return { success: true };
     } catch (error) {
       return {
         success: false,
