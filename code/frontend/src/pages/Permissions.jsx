@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { permissionAPI } from '../api/api';
-import { USE_MOCK, mockPermissionTypes, mockPermissionRequests, getMyPermissionRequests, getPendingPermissionRequests, getPermissionUsage } from '../api/mockData';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 import './Permissions.css';
@@ -14,58 +13,46 @@ const Permissions = () => {
   const [usageSummary, setUsageSummary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Modal states
+  const [successMsg, setSuccessMsg] = useState(null);
+
   const [showNewModal, setShowNewModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  
-  // Form state
+
   const [formData, setFormData] = useState({
     permissionTypeId: '',
-    date: '',
+    startDate: '',
+    endDate: '',
     isPartialDay: false,
     startTime: '',
     endTime: '',
-    reason: ''
+    reason: '',
+    documentUrl: '',
   });
+  const [selectedFile, setSelectedFile] = useState(null);
   const [approverComments, setApproverComments] = useState('');
 
-  const isManager = user?.role === 'Admin' || user?.role === 'RRHH' || user?.role === 'Jefatura';
+  const isManager = ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura'].includes(user?.role);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // ============ MOCK DATA - REMOVER EN PRODUCCIÓN ============
-      if (USE_MOCK) {
-        setPermissionTypes(mockPermissionTypes);
-        setRequests(getMyPermissionRequests(user?.employeeId || 4));
-        setUsageSummary(getPermissionUsage(user?.employeeId || 4));
-        if (isManager) {
-          setPendingRequests(getPendingPermissionRequests());
-        }
-        setLoading(false);
-        return;
-      }
-      // ============ FIN MOCK DATA ============
 
       const [typesRes, requestsRes, usageRes] = await Promise.all([
         permissionAPI.getTypes(),
         permissionAPI.getMyRequests(),
-        permissionAPI.getUsageSummary()
+        permissionAPI.getUsageSummary(),
       ]);
-      
+
       setPermissionTypes(typesRes.data || []);
       setRequests(requestsRes.data || []);
-      setUsageSummary(usageRes.data || []);
-      
+      const usageData = usageRes.data;
+      setUsageSummary(Array.isArray(usageData) ? usageData : (usageData ? [usageData] : []));
+
       if (isManager) {
         const pendingRes = await permissionAPI.getPendingApproval();
         setPendingRequests(pendingRes.data || []);
@@ -78,74 +65,58 @@ const Permissions = () => {
     }
   };
 
+  const calcWorkDays = (start, end) => {
+    if (!start || !end) return 0;
+    let count = 0;
+    const cur = new Date(start);
+    const last = new Date(end);
+    while (cur <= last) {
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) count++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return count;
+  };
+
+  const selectedType = permissionTypes.find(t => t.id === parseInt(formData.permissionTypeId));
+  const previewDays = formData.isPartialDay ? 0.5 : calcWorkDays(formData.startDate, formData.endDate);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // ============ MOCK - REMOVER EN PRODUCCIÓN ============
-    if (USE_MOCK) {
-      const type = mockPermissionTypes.find(t => t.id === parseInt(formData.permissionTypeId));
-      mockPermissionRequests.push({
-        id: mockPermissionRequests.length + 1,
-        employeeId: user?.employeeId || 4,
-        employeeName: user?.fullName || 'Usuario',
-        permissionTypeId: parseInt(formData.permissionTypeId),
-        permissionTypeName: type?.name || 'Permiso',
-        date: formData.date,
-        isPartialDay: formData.isPartialDay,
-        startTime: formData.startTime || null,
-        endTime: formData.endTime || null,
-        reason: formData.reason,
-        status: 'Pendiente',
-        createdAt: new Date().toISOString().split('T')[0]
-      });
-      setShowNewModal(false);
-      setFormData({
-        permissionTypeId: '',
-        date: '',
-        isPartialDay: false,
-        startTime: '',
-        endTime: '',
-        reason: ''
-      });
-      loadData();
-      return;
-    }
-    // ============ FIN MOCK ============
-
     try {
       setError(null);
-      await permissionAPI.create(formData);
+      await permissionAPI.create({
+        employeeId: user?.employeeId,
+        permissionTypeId: parseInt(formData.permissionTypeId),
+        startDate: formData.startDate,
+        endDate: formData.isPartialDay ? formData.startDate : (formData.endDate || formData.startDate),
+        isPartialDay: formData.isPartialDay,
+        startTime: formData.isPartialDay ? formData.startTime : null,
+        endTime: formData.isPartialDay ? formData.endTime : null,
+        reason: formData.reason,
+        documentUrl: formData.documentUrl || null,
+      });
+      setSuccessMsg('Solicitud enviada exitosamente');
       setShowNewModal(false);
+      setSelectedFile(null);
       setFormData({
         permissionTypeId: '',
-        date: '',
+        startDate: '',
+        endDate: '',
         isPartialDay: false,
         startTime: '',
         endTime: '',
-        reason: ''
+        reason: '',
+        documentUrl: '',
       });
       loadData();
+      setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
       setError(err.response?.data?.message || 'Error al crear la solicitud');
     }
   };
 
   const handleApprove = async () => {
-    // ============ MOCK - REMOVER EN PRODUCCIÓN ============
-    if (USE_MOCK) {
-      const req = mockPermissionRequests.find(r => r.id === selectedRequest.id);
-      if (req) {
-        req.status = 'Aprobado';
-        req.approvedAt = new Date().toISOString();
-      }
-      setShowApproveModal(false);
-      setSelectedRequest(null);
-      setApproverComments('');
-      loadData();
-      return;
-    }
-    // ============ FIN MOCK ============
-
     try {
       setError(null);
       await permissionAPI.approve(selectedRequest.id, { comments: approverComments });
@@ -154,25 +125,11 @@ const Permissions = () => {
       setApproverComments('');
       loadData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Error al aprobar la solicitud');
+      setError(err.response?.data?.message || 'Error al aprobar');
     }
   };
 
   const handleReject = async () => {
-    // ============ MOCK - REMOVER EN PRODUCCIÓN ============
-    if (USE_MOCK) {
-      const req = mockPermissionRequests.find(r => r.id === selectedRequest.id);
-      if (req) {
-        req.status = 'Rechazado';
-      }
-      setShowRejectModal(false);
-      setSelectedRequest(null);
-      setApproverComments('');
-      loadData();
-      return;
-    }
-    // ============ FIN MOCK ============
-
     try {
       setError(null);
       await permissionAPI.reject(selectedRequest.id, { comments: approverComments });
@@ -181,359 +138,425 @@ const Permissions = () => {
       setApproverComments('');
       loadData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Error al rechazar la solicitud');
+      setError(err.response?.data?.message || 'Error al rechazar');
     }
   };
 
   const getStatusBadge = (status) => {
     const badges = {
       'Pendiente': 'badge-warning',
+      'Aprobada': 'badge-success',
       'Aprobado': 'badge-success',
+      'Rechazada': 'badge-danger',
       'Rechazado': 'badge-danger',
-      'Cancelado': 'badge-secondary'
+      'Cancelada': 'badge-secondary',
+      'Cancelado': 'badge-secondary',
     };
     return badges[status] || 'badge-info';
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('es-CR');
+  const formatDate = (d) => {
+    if (!d) return '-';
+    const date = new Date(d);
+    if (isNaN(date)) return '-';
+    return date.toLocaleDateString('es-CR');
   };
 
-  if (loading) {
-    return <Layout><div className="loading">Cargando...</div></Layout>;
-  }
+  if (loading) return <Layout><div className="loading">Cargando...</div></Layout>;
 
   return (
     <Layout>
-    <div className="permissions-container">
-      <div className="page-header">
-        <h1>Gestión de Permisos</h1>
-        <button className="btn btn-primary" onClick={() => setShowNewModal(true)}>
-          + Solicitar Permiso
-        </button>
-      </div>
-
-      {error && <div className="alert alert-error">{error}</div>}
-
-      {/* Usage Summary Cards */}
-      <div className="usage-summary">
-        <h3>Resumen de Uso Anual</h3>
-        <div className="usage-cards">
-          {usageSummary.map((item) => (
-            <div key={item.permissionTypeId} className="usage-card">
-              <div className="usage-type">{item.typeName}</div>
-              <div className="usage-stats">
-                <span className="used">{item.usedDays} usados</span>
-                <span className="limit">/ {item.maxDaysPerYear || '∞'} máx</span>
-              </div>
-              <div className="usage-bar">
-                <div 
-                  className="usage-progress" 
-                  style={{ 
-                    width: item.maxDaysPerYear 
-                      ? `${Math.min((item.usedDays / item.maxDaysPerYear) * 100, 100)}%` 
-                      : '0%' 
-                  }}
-                ></div>
-              </div>
-            </div>
-          ))}
-          {usageSummary.length === 0 && (
-            <div className="no-usage">No hay uso registrado este año</div>
-          )}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="tabs">
-        <button 
-          className={`tab ${activeTab === 'my-requests' ? 'active' : ''}`}
-          onClick={() => setActiveTab('my-requests')}
-        >
-          Mis Solicitudes
-        </button>
-        {isManager && (
-          <button 
-            className={`tab ${activeTab === 'pending' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pending')}
-          >
-            Pendientes de Aprobar ({pendingRequests.length})
+      <div className="permissions-container">
+        <div className="page-header">
+          <h1>Gestión de Permisos</h1>
+          <button className="btn btn-primary" onClick={() => setShowNewModal(true)}>
+            + Solicitar Permiso
           </button>
-        )}
-      </div>
-
-      {/* My Requests Table */}
-      {activeTab === 'my-requests' && (
-        <div className="table-card">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Tipo</th>
-                <th>Fecha</th>
-                <th>Horario</th>
-                <th>Motivo</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((request) => (
-                <tr key={request.id}>
-                  <td>{request.permissionTypeName}</td>
-                  <td>{formatDate(request.date)}</td>
-                  <td>
-                    {request.isPartialDay 
-                      ? `${request.startTime} - ${request.endTime}` 
-                      : 'Día completo'}
-                  </td>
-                  <td>{request.reason}</td>
-                  <td>
-                    <span className={`badge ${getStatusBadge(request.status)}`}>
-                      {request.status}
-                    </span>
-                  </td>
-                  <td>
-                    {request.status === 'Pendiente' && (
-                      <button className="btn btn-sm btn-danger">
-                        Cancelar
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {requests.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="no-data">
-                    No tienes solicitudes de permiso
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
         </div>
-      )}
 
-      {/* Pending Approval Table */}
-      {activeTab === 'pending' && isManager && (
-        <div className="table-card">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Empleado</th>
-                <th>Tipo</th>
-                <th>Fecha</th>
-                <th>Horario</th>
-                <th>Motivo</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingRequests.map((request) => (
-                <tr key={request.id}>
-                  <td>{request.employeeName}</td>
-                  <td>{request.permissionTypeName}</td>
-                  <td>{formatDate(request.date)}</td>
-                  <td>
-                    {request.isPartialDay 
-                      ? `${request.startTime} - ${request.endTime}` 
-                      : 'Día completo'}
-                  </td>
-                  <td>{request.reason}</td>
-                  <td>
-                    <button 
-                      className="btn btn-sm btn-success"
-                      onClick={() => {
-                        setSelectedRequest(request);
-                        setShowApproveModal(true);
-                      }}
-                    >
-                      Aprobar
-                    </button>
-                    <button 
-                      className="btn btn-sm btn-danger"
-                      onClick={() => {
-                        setSelectedRequest(request);
-                        setShowRejectModal(true);
-                      }}
-                    >
-                      Rechazar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {pendingRequests.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="no-data">
-                    No hay solicitudes pendientes de aprobación
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+        {error && <div className="alert alert-error">{error}</div>}
+        {successMsg && <div className="alert alert-success">{successMsg}</div>}
 
-      {/* New Request Modal */}
-      {showNewModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Nueva Solicitud de Permiso</h2>
-              <button className="close-btn" onClick={() => setShowNewModal(false)}>×</button>
-            </div>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Tipo de Permiso *</label>
-                <select
-                  value={formData.permissionTypeId}
-                  onChange={(e) => setFormData({...formData, permissionTypeId: e.target.value})}
-                  required
-                >
-                  <option value="">Seleccionar tipo</option>
-                  {permissionTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name} {type.maxDaysPerYear ? `(máx ${type.maxDaysPerYear} días/año)` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Fecha *</label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({...formData, date: e.target.value})}
-                  min={new Date().toISOString().split('T')[0]}
-                  required
-                />
-              </div>
-              <div className="form-group checkbox-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={formData.isPartialDay}
-                    onChange={(e) => setFormData({...formData, isPartialDay: e.target.checked})}
-                  />
-                  Es permiso parcial (horas)
-                </label>
-              </div>
-              {formData.isPartialDay && (
-                <div className="time-inputs">
-                  <div className="form-group">
-                    <label>Hora Inicio *</label>
-                    <input
-                      type="time"
-                      value={formData.startTime}
-                      onChange={(e) => setFormData({...formData, startTime: e.target.value})}
-                      required={formData.isPartialDay}
-                    />
+        {/* Resumen de uso anual */}
+        <div className="usage-summary">
+          <h3>Resumen de Uso Anual</h3>
+          <div className="usage-cards">
+            {usageSummary.length === 0 ? (
+              <div className="no-usage">No hay uso registrado este año</div>
+            ) : (
+              usageSummary.map((item, idx) => (
+                <div key={item.permissionTypeId ?? idx} className="usage-card">
+                  <div className="usage-type">{item.typeName}</div>
+                  <div className="usage-stats">
+                    <span className="used">{item.usedDays} días usados</span>
+                    <span className="limit">/ {item.maxDaysPerYear ?? '∞'} máx</span>
                   </div>
-                  <div className="form-group">
-                    <label>Hora Fin *</label>
-                    <input
-                      type="time"
-                      value={formData.endTime}
-                      onChange={(e) => setFormData({...formData, endTime: e.target.value})}
-                      required={formData.isPartialDay}
+                  <div className="usage-bar">
+                    <div
+                      className="usage-progress"
+                      style={{
+                        width: item.maxDaysPerYear
+                          ? `${Math.min((item.usedDays / item.maxDaysPerYear) * 100, 100)}%`
+                          : '0%'
+                      }}
                     />
                   </div>
                 </div>
-              )}
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="tabs">
+          <button
+            className={`tab ${activeTab === 'my-requests' ? 'active' : ''}`}
+            onClick={() => setActiveTab('my-requests')}
+          >
+            Mis Solicitudes
+          </button>
+          {isManager && (
+            <button
+              className={`tab ${activeTab === 'pending' ? 'active' : ''}`}
+              onClick={() => setActiveTab('pending')}
+            >
+              Pendientes de Aprobar ({pendingRequests.length})
+            </button>
+          )}
+        </div>
+
+        {/* Mis solicitudes */}
+        {activeTab === 'my-requests' && (
+          <div className="table-card">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Fecha Inicio</th>
+                  <th>Fecha Fin</th>
+                  <th>Días</th>
+                  <th>Horario</th>
+                  <th>Motivo</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="no-data">No tienes solicitudes de permiso</td>
+                  </tr>
+                ) : (
+                  requests.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.permissionTypeName}</td>
+                      <td>{formatDate(r.startDate)}</td>
+                      <td>{formatDate(r.endDate)}</td>
+                      <td>{r.durationDays}</td>
+                      <td>
+                        {r.isPartialDay
+                          ? `${r.startTime} - ${r.endTime}`
+                          : 'Día completo'}
+                      </td>
+                      <td>{r.reason}</td>
+                      <td>
+                        <span className={`badge ${getStatusBadge(r.requestStatusName)}`}>
+                          {r.requestStatusName}
+                        </span>
+                      </td>
+                      <td>
+                        {r.requestStatusName === 'Pendiente' && (
+                          <button
+                            className="btn btn-sm btn-danger"
+                            onClick={() => permissionAPI.cancel(r.id).then(loadData)}
+                          >
+                            Cancelar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pendientes de aprobación */}
+        {activeTab === 'pending' && isManager && (
+          <div className="table-card">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Empleado</th>
+                  <th>Tipo</th>
+                  <th>Fecha Inicio</th>
+                  <th>Fecha Fin</th>
+                  <th>Días</th>
+                  <th>Motivo</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingRequests.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="no-data">No hay solicitudes pendientes</td>
+                  </tr>
+                ) : (
+                  pendingRequests.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.employeeName}</td>
+                      <td>{r.permissionTypeName}</td>
+                      <td>{formatDate(r.startDate)}</td>
+                      <td>{formatDate(r.endDate)}</td>
+                      <td>{r.durationDays}</td>
+                      <td>{r.reason}</td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-success"
+                          onClick={() => { setSelectedRequest(r); setShowApproveModal(true); }}
+                        >
+                          Aprobar
+                        </button>
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={() => { setSelectedRequest(r); setShowRejectModal(true); }}
+                        >
+                          Rechazar
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Modal nueva solicitud */}
+        {showNewModal && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header">
+                <h2>Nueva Solicitud de Permiso</h2>
+                <button className="close-btn" onClick={() => setShowNewModal(false)}>×</button>
+              </div>
+              <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                  <label>Tipo de Permiso *</label>
+                  <select
+                    value={formData.permissionTypeId}
+                    onChange={(e) => setFormData({ ...formData, permissionTypeId: e.target.value })}
+                    required
+                  >
+                    <option value="">Seleccionar tipo</option>
+                    {permissionTypes.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                        {t.maxDaysPerYear ? ` (máx ${t.maxDaysPerYear} días/año)` : ''}
+                        {t.isPaid ? ' — Con goce' : ' — Sin goce'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group checkbox-group">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={formData.isPartialDay}
+                      onChange={(e) => setFormData({ ...formData, isPartialDay: e.target.checked })}
+                    />
+                    Es permiso parcial (solo horas)
+                  </label>
+                </div>
+
+                {formData.isPartialDay ? (
+                  <>
+                    <div className="form-group">
+                      <label>Fecha *</label>
+                      <input
+                        type="date"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                        min={new Date().toISOString().split('T')[0]}
+                        required
+                      />
+                    </div>
+                    <div className="time-inputs">
+                      <div className="form-group">
+                        <label>Hora Inicio *</label>
+                        <input
+                          type="time"
+                          value={formData.startTime}
+                          onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Hora Fin *</label>
+                        <input
+                          type="time"
+                          value={formData.endTime}
+                          onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="time-inputs">
+                    <div className="form-group">
+                      <label>Fecha Inicio *</label>
+                      <input
+                        type="date"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                        min={new Date().toISOString().split('T')[0]}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Fecha Fin *</label>
+                      <input
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                        min={formData.startDate || new Date().toISOString().split('T')[0]}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {!formData.isPartialDay && formData.startDate && formData.endDate && (
+                  <div className="alert alert-info" style={{ marginBottom: '12px' }}>
+                    📅 Días hábiles solicitados: <strong>{previewDays}</strong>
+                    {selectedType?.maxDaysPerYear && ` de ${selectedType.maxDaysPerYear} máximos al año`}
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label>Motivo *</label>
+                  <textarea
+                    value={formData.reason}
+                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                    rows="3"
+                    placeholder="Describa el motivo de su solicitud..."
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    Comprobante
+                    {selectedType?.name?.toLowerCase().includes('cita') ||
+                     selectedType?.name?.toLowerCase().includes('dica')
+                      ? <span style={{color:'#e74c3c'}}> * (obligatorio para cita médica)</span>
+                      : <span style={{color:'#888'}}> (opcional)</span>
+                    }
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setSelectedFile(file);
+                        // Guardar nombre del archivo como referencia
+                        setFormData({ ...formData, documentUrl: file.name });
+                      }
+                    }}
+                  />
+                  {selectedFile && (
+                    <small style={{color:'#27ae60'}}>
+                      ✓ Archivo seleccionado: {selectedFile.name}
+                    </small>
+                  )}
+                  {(selectedType?.name?.toLowerCase().includes('cita') ||
+                    selectedType?.name?.toLowerCase().includes('dica')) && !selectedFile && (
+                    <small style={{color:'#e74c3c'}}>
+                      ⚠ Debe adjuntar el comprobante de la cita médica.
+                    </small>
+                  )}
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowNewModal(false)}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary">
+                    Enviar Solicitud
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal aprobar */}
+        {showApproveModal && selectedRequest && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header">
+                <h2>Aprobar Solicitud</h2>
+                <button className="close-btn" onClick={() => setShowApproveModal(false)}>×</button>
+              </div>
+              <div className="info-box">
+                <p><strong>Empleado:</strong> {selectedRequest.employeeName}</p>
+                <p><strong>Tipo:</strong> {selectedRequest.permissionTypeName}</p>
+                <p><strong>Fechas:</strong> {formatDate(selectedRequest.startDate)} → {formatDate(selectedRequest.endDate)}</p>
+                <p><strong>Días:</strong> {selectedRequest.durationDays}</p>
+                <p><strong>Motivo:</strong> {selectedRequest.reason}</p>
+              </div>
               <div className="form-group">
-                <label>Motivo *</label>
+                <label>Comentarios (opcional)</label>
                 <textarea
-                  value={formData.reason}
-                  onChange={(e) => setFormData({...formData, reason: e.target.value})}
-                  rows="3"
-                  placeholder="Describa el motivo de su solicitud..."
-                  required
-                ></textarea>
+                  value={approverComments}
+                  onChange={(e) => setApproverComments(e.target.value)}
+                  rows="2"
+                  placeholder="Agregar comentarios..."
+                />
               </div>
               <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowNewModal(false)}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Enviar Solicitud
-                </button>
+                <button className="btn btn-secondary" onClick={() => setShowApproveModal(false)}>Cancelar</button>
+                <button className="btn btn-success" onClick={handleApprove}>Aprobar</button>
               </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Approve Modal */}
-      {showApproveModal && selectedRequest && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Aprobar Solicitud</h2>
-              <button className="close-btn" onClick={() => setShowApproveModal(false)}>×</button>
-            </div>
-            <p>¿Está seguro que desea aprobar esta solicitud de permiso?</p>
-            <div className="info-box">
-              <p><strong>Empleado:</strong> {selectedRequest.employeeName}</p>
-              <p><strong>Tipo:</strong> {selectedRequest.permissionTypeName}</p>
-              <p><strong>Fecha:</strong> {formatDate(selectedRequest.date)}</p>
-              <p><strong>Motivo:</strong> {selectedRequest.reason}</p>
-            </div>
-            <div className="form-group">
-              <label>Comentarios (opcional)</label>
-              <textarea
-                value={approverComments}
-                onChange={(e) => setApproverComments(e.target.value)}
-                rows="2"
-                placeholder="Agregar comentarios..."
-              ></textarea>
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowApproveModal(false)}>
-                Cancelar
-              </button>
-              <button className="btn btn-success" onClick={handleApprove}>
-                Aprobar
-              </button>
+        {/* Modal rechazar */}
+        {showRejectModal && selectedRequest && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header">
+                <h2>Rechazar Solicitud</h2>
+                <button className="close-btn" onClick={() => setShowRejectModal(false)}>×</button>
+              </div>
+              <div className="info-box">
+                <p><strong>Empleado:</strong> {selectedRequest.employeeName}</p>
+                <p><strong>Tipo:</strong> {selectedRequest.permissionTypeName}</p>
+                <p><strong>Fechas:</strong> {formatDate(selectedRequest.startDate)} → {formatDate(selectedRequest.endDate)}</p>
+              </div>
+              <div className="form-group">
+                <label>Motivo del Rechazo *</label>
+                <textarea
+                  value={approverComments}
+                  onChange={(e) => setApproverComments(e.target.value)}
+                  rows="3"
+                  placeholder="Indique el motivo del rechazo..."
+                  required
+                />
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-secondary" onClick={() => setShowRejectModal(false)}>Cancelar</button>
+                <button className="btn btn-danger" onClick={handleReject}>Rechazar</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Reject Modal */}
-      {showRejectModal && selectedRequest && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Rechazar Solicitud</h2>
-              <button className="close-btn" onClick={() => setShowRejectModal(false)}>×</button>
-            </div>
-            <p>¿Está seguro que desea rechazar esta solicitud de permiso?</p>
-            <div className="info-box">
-              <p><strong>Empleado:</strong> {selectedRequest.employeeName}</p>
-              <p><strong>Tipo:</strong> {selectedRequest.permissionTypeName}</p>
-              <p><strong>Fecha:</strong> {formatDate(selectedRequest.date)}</p>
-            </div>
-            <div className="form-group">
-              <label>Motivo del Rechazo *</label>
-              <textarea
-                value={approverComments}
-                onChange={(e) => setApproverComments(e.target.value)}
-                rows="3"
-                placeholder="Indique el motivo del rechazo..."
-                required
-              ></textarea>
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowRejectModal(false)}>
-                Cancelar
-              </button>
-              <button className="btn btn-danger" onClick={handleReject}>
-                Rechazar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
     </Layout>
   );
 };

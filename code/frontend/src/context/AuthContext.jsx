@@ -18,15 +18,25 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    
-    if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
-  }, []);
+useEffect(() => {
+  const token = localStorage.getItem('token');
+  const savedUser = localStorage.getItem('user');
+  
+  if (token && savedUser) {
+    const raw = JSON.parse(savedUser);
+    // Normalizar por si el localStorage tiene datos viejos en PascalCase
+    const normalized = {
+      id:         raw.id         ?? raw.UserId     ?? raw.userId,
+      username:   raw.username   ?? raw.Username,
+      role:       raw.role       ?? raw.Role       ?? 'Empleado',
+      employeeId: raw.employeeId ?? raw.EmployeeId ?? null,
+      fullName:   raw.fullName   ?? raw.FullName   ?? '',
+      token:      raw.token      ?? raw.Token      ?? token,
+    };
+    setUser(normalized);
+  }
+  setLoading(false);
+}, []);
 
   const login = async (username, password) => {
     // ============ MOCK LOGIN - REMOVER EN PRODUCCIÓN ============

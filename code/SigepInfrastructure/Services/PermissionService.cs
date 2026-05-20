@@ -219,8 +219,12 @@ public class PermissionService : IPermissionService
         if (overlappingRequest != null && !dto.IsPartialDay)
             throw new InvalidOperationException("Ya existe una solicitud de permiso para la misma fecha");
 
-        if (permissionType.RequiresDocument && string.IsNullOrEmpty(dto.DocumentUrl))
-            throw new InvalidOperationException($"El tipo de permiso '{permissionType.Name}' requiere documento adjunto");
+        // Solo cita médica requiere comprobante obligatorio
+        bool isMedical = permissionType.Name.Contains("dica", StringComparison.OrdinalIgnoreCase) ||
+                         permissionType.Name.Contains("Cita", StringComparison.OrdinalIgnoreCase);
+
+        if (isMedical && string.IsNullOrEmpty(dto.DocumentUrl))
+            throw new InvalidOperationException("La cita médica requiere adjuntar el comprobante médico.");
 
         var request = new PermissionRequest
         {

@@ -137,7 +137,31 @@ public class PayrollService : IPayrollService
             decimal overtimeHours = overtimeRecords.Sum(o => o.TotalHours);
             decimal overtimeAmount = overtimeRecords.Sum(o => o.TotalAmount);
 
-            decimal grossSalary = periodSalary + overtimeAmount;
+            // Permisos sin goce aprobados en el período — se descuentan del salario
+            var approvedRequestStatus = await _context.RequestStatuses
+                .FirstOrDefaultAsync(s => s.Name == "Aprobada");
+
+            decimal unpaidPermissionDays = 0;
+            if (approvedRequestStatus != null)
+            {
+                var unpaidPermissions = await _context.PermissionRequests
+                    .Include(pr => pr.PermissionType)
+                    .Where(pr =>
+                        pr.EmployeeId == emp.Id &&
+                        pr.RequestStatusId == approvedRequestStatus.Id &&
+                        pr.StartDate >= startDate &&
+                        pr.StartDate <= endDate &&
+                        pr.PermissionType != null &&
+                        !pr.PermissionType.IsPaid)
+                    .ToListAsync();
+
+                unpaidPermissionDays = unpaidPermissions.Sum(pr => pr.DurationDays);
+            }
+
+            decimal dailySalary = periodSalary / (IsMonthlyPeriod(periodType.Name) ? 30m : 15m);
+            decimal unpaidPermissionDeduction = Math.Round(dailySalary * unpaidPermissionDays, 2);
+
+            decimal grossSalary = periodSalary + overtimeAmount - unpaidPermissionDeduction;
 
             var detail = new PayrollDetail
             {

@@ -4,21 +4,20 @@ import { useAuth } from '../context/AuthContext';
 import './Layout.css';
 
 const NAV_ITEMS = [
-  { path: '/dashboard', label: 'Inicio', icon: '⊞', roles: ['Admin', 'RRHH', 'Jefatura', 'Empleado'] },
-  { path: '/attendance', label: 'Asistencia', icon: '✓', roles: ['Admin', 'RRHH', 'Jefatura', 'Empleado'] },
-  { path: '/vacations', label: 'Vacaciones', icon: '✈', roles: ['Admin', 'RRHH', 'Jefatura', 'Empleado'] },
-  { path: '/permissions', label: 'Permisos', icon: '📋', roles: ['Admin', 'RRHH', 'Jefatura', 'Empleado'] },
-  { path: '/disabilities', label: 'Incapacidades', icon: '🏥', roles: ['Admin', 'RRHH', 'Jefatura', 'Empleado'] },
-  { path: '/performance', label: 'Desempeño', icon: '⭐', roles: ['Admin', 'RRHH', 'Jefatura', 'Empleado'] },
-  { divider: true, label: 'Gestión', roles: ['Admin', 'RRHH'] },
-  { path: '/overtime', label: 'Horas Extra', icon: '⏱', roles: ['Admin', 'RRHH'] },
-  { path: '/payroll', label: 'Planilla', icon: '💳', roles: ['Admin', 'RRHH'] },
-  { path: '/annual-bonus', label: 'Aguinaldo', icon: '🎁', roles: ['Admin', 'RRHH'] },
-  { path: '/settlements', label: 'Liquidaciones', icon: '📄', roles: ['Admin', 'RRHH'] },
-  { path: '/reports', label: 'Reportes', icon: '📊', roles: ['Admin', 'RRHH'] },
-  { path: '/employees', label: 'Empleados', icon: '👥', roles: ['Admin', 'RRHH'] },
+  { path: '/dashboard', label: 'Inicio', icon: '⊞', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura', 'Empleado'] },
+{ path: '/attendance', label: 'Asistencia', icon: '✓', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura', 'Empleado'] },
+{ path: '/vacations', label: 'Vacaciones', icon: '✈', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura', 'Empleado'] },
+{ path: '/permissions', label: 'Permisos', icon: '📋', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura', 'Empleado'] },
+{ path: '/disabilities', label: 'Incapacidades', icon: '🏥', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura', 'Empleado'] },
+{ path: '/performance', label: 'Desempeño', icon: '⭐', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura', 'Empleado'] },
+  { divider: true, label: 'Gestión', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos'] },
+{ path: '/overtime', label: 'Horas Extra', icon: '⏱', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos'] },
+{ path: '/payroll', label: 'Planilla', icon: '💳', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos'] },
+{ path: '/annual-bonus', label: 'Aguinaldo', icon: '🎁', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos'] },
+{ path: '/settlements', label: 'Liquidaciones', icon: '📄', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos'] },
+{ path: '/reports', label: 'Reportes', icon: '📊', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos'] },
+{ path: '/employees', label: 'Empleados', icon: '👥', roles: ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos'] },
 ];
-
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
