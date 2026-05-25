@@ -178,12 +178,30 @@ public class PayrollService : IPayrollService
             decimal detailDeductions = 0;
             decimal detailBenefits = 0;
 
-            foreach (var dedType in deductionTypes)
-            {
-                decimal amount = dedType.IsPercentage
-                    ? Math.Round(grossSalary * dedType.DefaultValue, 2)
-                    : dedType.DefaultValue;
+// Salario mensual equivalente para calcular renta correctamente
+decimal monthlyEquivalent = periodType == PayrollPeriodType.Mensual
+    ? grossSalary
+    : grossSalary * 2;
 
+foreach (var dedType in deductionTypes)
+{
+    decimal amount;
+
+    if (dedType.Name.Contains("Renta") || dedType.Name.Contains("renta"))
+    {
+        // Impuesto sobre la renta con tramos progresivos CR
+        decimal monthlyTax = CalculateIncomeTax(monthlyEquivalent);
+        // Si es quincenal, cobrar la mitad del impuesto mensual
+        amount = periodType == PayrollPeriodType.Mensual
+            ? monthlyTax
+            : Math.Round(monthlyTax / 2, 2);
+    }
+    else
+    {
+        amount = dedType.IsPercentage
+            ? Math.Round(grossSalary * dedType.DefaultValue, 2)
+            : dedType.DefaultValue;
+    }
                 var deduction = new PayrollDeduction
                 {
                     DeductionTypeId = dedType.Id,
@@ -466,4 +484,30 @@ detail.NetSalary = grossSalary - detailDeductions;
 
         return dto;
     }
+    /// <summary>
+/// Calcula el impuesto sobre la renta según tramos progresivos CR.
+/// Tramos aproximados
+/// Hasta ₡941.000: exento
+/// ₡941.001 - ₡1.381.000: 10%
+/// ₡1.381.001 - ₡2.423.000: 15%
+/// ₡2.423.001 - ₡4.845.000: 20%
+/// Más de ₡4.845.000: 25%
+/// </summary>
+private decimal CalculateIncomeTax(decimal monthlyGross)
+{
+    decimal tax = 0;
+
+    if (monthlyGross <= 941000m)
+        tax = 0;
+    else if (monthlyGross <= 1381000m)
+        tax = (monthlyGross - 941000m) * 0.10m;
+    else if (monthlyGross <= 2423000m)
+        tax = (440000m * 0.10m) + ((monthlyGross - 1381000m) * 0.15m);
+    else if (monthlyGross <= 4845000m)
+        tax = (440000m * 0.10m) + (1042000m * 0.15m) + ((monthlyGross - 2423000m) * 0.20m);
+    else
+        tax = (440000m * 0.10m) + (1042000m * 0.15m) + (2422000m * 0.20m) + ((monthlyGross - 4845000m) * 0.25m);
+
+    return Math.Round(tax, 2);
+}
 }

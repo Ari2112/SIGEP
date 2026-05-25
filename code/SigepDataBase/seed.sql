@@ -181,14 +181,3 @@ VALUES
     ('BONUS_PERIOD_START_DAY', '1', 'Día inicio periodo aguinaldo', 'int', 'BONUS', 1),
     ('COMPANY_NAME', 'Alquileres Segura', 'Nombre de la empresa', 'string', 'GENERAL', 1),
     ('COMPANY_ID', '3-101-123456', 'Cédula jurídica', 'string', 'GENERAL', 1);
-
-PRINT 'Seed completado exitosamente';
-PRINT '==============================';
-PRINT 'Usuarios de prueba:';
-PRINT '  admin / admin123 (Administrador)';
-PRINT '  rrhh / admin123 (RRHH)';
-PRINT '  supervisor / admin123 (Jefatura)';
-PRINT '  juan.perez / admin123 (Empleado)';
-PRINT '  ana.rodriguez / admin123 (Empleado)';
-PRINT '  carlos.martinez / admin123 (Empleado)';
-PRINT '==============================';
