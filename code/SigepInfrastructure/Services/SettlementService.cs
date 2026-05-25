@@ -134,7 +134,24 @@ decimal severance = 0;
 
         if (terminationType.HasSeverance)
         {
-            severance = lastSalary * workedYears;
+            // Cesantía según Art. 29 Código de Trabajo CR
+// Máximo 8 años de reconocimiento
+decimal daysPerYear = workedYears switch
+{
+    0 when totalMonths < 3  => 0,
+    0 when totalMonths < 6  => 7,
+    0                        => 14,
+    1                        => 19.5m,
+    2                        => 20.0m,
+    3                        => 20.5m,
+    4                        => 21.0m,
+    _                        => 21.5m
+};
+
+int yearsForCalc = Math.Min(workedYears, 8);
+decimal totalCesantiaDays = daysPerYear * yearsForCalc;
+decimal dailySalaryForSeverance = lastSalary / 30m;
+severance = Math.Round(dailySalaryForSeverance * totalCesantiaDays, 2);
 
             if (workedYears == 0 && totalMonths >= 3)
                 severance = lastSalary * 0.5m;

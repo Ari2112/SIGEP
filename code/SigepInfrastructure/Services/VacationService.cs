@@ -25,14 +25,44 @@ public class VacationService : IVacationService
     // === SALDO DE VACACIONES ===
 
     public async Task<VacationBalanceDto?> GetBalanceAsync(int employeeId, int year)
+{
+    var balance = await _context.VacationBalances
+        .FirstOrDefaultAsync(vb => vb.EmployeeId == employeeId && vb.Year == year);
+
+    // Si no existe el saldo, crearlo automáticamente
+    // Mínimo legal CR: 14 días hábiles por año (Art. 153 Código de Trabajo)
+    if (balance == null)
     {
-        var balance = await _context.VacationBalances
-            .Include(vb => vb.Employee)
-            .FirstOrDefaultAsync(vb => vb.EmployeeId == employeeId && vb.Year == year);
+        var employee = await _context.Employees.FindAsync(employeeId);
+        if (employee == null) return null;
 
-        if (balance == null)
-            return null;
+        int totalDays = employee.VacationDaysPerYear > 0
+            ? employee.VacationDaysPerYear
+            : 14;
 
+        // Trasladar días disponibles del año anterior si existen
+        var prevBalance = await _context.VacationBalances
+            .FirstOrDefaultAsync(v => v.EmployeeId == employeeId && v.Year == year - 1);
+
+        decimal carriedOver = prevBalance != null
+            ? Math.Max(0, prevBalance.AvailableDays)
+            : 0;
+
+        balance = new VacationBalance
+{
+    EmployeeId      = employeeId,
+    Year            = year,
+    TotalDays       = totalDays,
+    CarriedOverDays = (int)Math.Floor(carriedOver),
+    UsedDays        = 0,
+    PendingDays     = 0,
+    ExpirationDate  = new DateTime(year + 1, 12, 31),
+    CreatedAt       = DateTime.UtcNow
+};
+
+        _context.VacationBalances.Add(balance);
+        await _context.SaveChangesAsync();
+    }
         return new VacationBalanceDto
         {
             Id = balance.Id,

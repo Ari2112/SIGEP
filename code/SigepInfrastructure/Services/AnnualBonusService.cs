@@ -62,10 +62,10 @@ public class AnnualBonusService : IAnnualBonusService
         if (existing != null)
             throw new InvalidOperationException($"Ya existe un aguinaldo calculado para el año {dto.Year}");
 
-        // Período legal del aguinaldo en Costa Rica: 1 de diciembre del año anterior
-// al 30 de noviembre del año en curso (Código de Trabajo, Art. 229)
-var periodStart = new DateTime(dto.Year - 1, 12, 1);
-var periodEnd = new DateTime(dto.Year, 11, 30);
+        // Período legal del aguinaldo según Art. 229 Código de Trabajo CR:
+        // Del 1 de diciembre del año anterior al 30 de noviembre del año en curso
+        var periodStart = new DateTime(dto.Year - 1, 12, 1);
+        var periodEnd   = new DateTime(dto.Year, 11, 30);
 
         var bonus = new AnnualBonus
         {
@@ -93,37 +93,37 @@ var periodEnd = new DateTime(dto.Year, 11, 30);
         decimal totalAmount = 0;
 
         foreach (var emp in employees)
-{
-    // Meses trabajados dentro del período legal (1 dic año anterior → 30 nov año en curso)
-    DateTime empStart = emp.HireDate > periodStart ? emp.HireDate : periodStart;
-    DateTime empEnd = periodEnd;
+        {
+            // Meses trabajados dentro del período legal (1 dic año anterior → 30 nov)
+            DateTime empStart = emp.HireDate > periodStart ? emp.HireDate : periodStart;
+            DateTime empEnd   = periodEnd;
 
-    int workedMonths = ((empEnd.Year - empStart.Year) * 12) + empEnd.Month - empStart.Month;
-    if (empStart.Day > 1) workedMonths--;
-    if (workedMonths < 0) workedMonths = 0;
-    if (workedMonths > 12) workedMonths = 12;
+            int workedMonths = ((empEnd.Year - empStart.Year) * 12) + empEnd.Month - empStart.Month;
+            if (empStart.Day > 1) workedMonths--;
+            if (workedMonths < 0)  workedMonths = 0;
+            if (workedMonths > 12) workedMonths = 12;
 
-    decimal averageSalary = emp.BaseSalary;
-    decimal proportionalAmount = Math.Round((averageSalary / 12m) * workedMonths, 2);
+            decimal averageSalary     = emp.BaseSalary;
+            decimal proportionalAmount = Math.Round((averageSalary / 12m) * workedMonths, 2);
 
             var detail = new AnnualBonusDetail
             {
-                AnnualBonusId = bonus.Id,
-                EmployeeId = emp.Id,
-                WorkedMonths = workedMonths,
-                AverageSalary = averageSalary,
+                AnnualBonusId      = bonus.Id,
+                EmployeeId         = emp.Id,
+                WorkedMonths       = workedMonths,
+                AverageSalary      = averageSalary,
                 ProportionalAmount = Math.Round(proportionalAmount, 2),
-                Deductions = 0,
-                NetAmount = Math.Round(proportionalAmount, 2),
-                CreatedAt = DateTime.UtcNow
+                Deductions         = 0,
+                NetAmount          = Math.Round(proportionalAmount, 2),
+                CreatedAt          = DateTime.UtcNow
             };
 
             _context.AnnualBonusDetails.Add(detail);
             totalAmount += detail.NetAmount;
         }
 
-        bonus.TotalAmount = totalAmount;
-        bonus.TotalEmployees = employees.Count;
+        bonus.TotalAmount     = totalAmount;
+        bonus.TotalEmployees  = employees.Count;
 
         await _context.SaveChangesAsync();
 
@@ -147,11 +147,11 @@ var periodEnd = new DateTime(dto.Year, 11, 30);
         if (bonus.Status != AnnualBonusStatus.Calculado)
             throw new InvalidOperationException("Solo se puede aprobar un aguinaldo calculado");
 
-        bonus.Status = AnnualBonusStatus.Aprobado;
-        bonus.ApprovedById = userId;
-        bonus.ApprovedAt = DateTime.UtcNow;
-        bonus.Notes = notes ?? bonus.Notes;
-        bonus.UpdatedAt = DateTime.UtcNow;
+        bonus.Status        = AnnualBonusStatus.Aprobado;
+        bonus.ApprovedById  = userId;
+        bonus.ApprovedAt    = DateTime.UtcNow;
+        bonus.Notes         = notes ?? bonus.Notes;
+        bonus.UpdatedAt     = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
@@ -187,36 +187,45 @@ var periodEnd = new DateTime(dto.Year, 11, 30);
             .Where(e => e.EmployeeStatusId == activeStatus.Id && e.HireDate.Year <= bonus.Year)
             .ToListAsync();
 
+        // Período legal: 1 dic año anterior → 30 nov año en curso
+        var periodStart = new DateTime(bonus.Year - 1, 12, 1);
+        var periodEnd   = new DateTime(bonus.Year, 11, 30);
+
         decimal totalAmount = 0;
 
         foreach (var emp in employees)
         {
-            int startMonth = emp.HireDate.Year == bonus.Year ? emp.HireDate.Month : 1;
-            int workedMonths = 12 - startMonth + 1;
+            DateTime empStart = emp.HireDate > periodStart ? emp.HireDate : periodStart;
+            DateTime empEnd   = periodEnd;
 
-            decimal averageSalary = emp.BaseSalary;
-            decimal proportionalAmount = Math.Round((averageSalary / 12) * workedMonths, 2);
+            int workedMonths = ((empEnd.Year - empStart.Year) * 12) + empEnd.Month - empStart.Month;
+            if (empStart.Day > 1) workedMonths--;
+            if (workedMonths < 0)  workedMonths = 0;
+            if (workedMonths > 12) workedMonths = 12;
+
+            decimal averageSalary      = emp.BaseSalary;
+            decimal proportionalAmount = Math.Round((averageSalary / 12m) * workedMonths, 2);
 
             var detail = new AnnualBonusDetail
             {
-                AnnualBonusId = bonus.Id,
-                EmployeeId = emp.Id,
-                WorkedMonths = workedMonths,
-                AverageSalary = averageSalary,
+                AnnualBonusId      = bonus.Id,
+                EmployeeId         = emp.Id,
+                WorkedMonths       = workedMonths,
+                AverageSalary      = averageSalary,
                 ProportionalAmount = proportionalAmount,
-                Deductions = 0,
-                NetAmount = proportionalAmount,
-                CreatedAt = DateTime.UtcNow
+                Deductions         = 0,
+                NetAmount          = proportionalAmount,
+                CreatedAt          = DateTime.UtcNow
             };
 
             _context.AnnualBonusDetails.Add(detail);
             totalAmount += proportionalAmount;
         }
 
-        bonus.TotalAmount = totalAmount;
+        bonus.TotalAmount    = totalAmount;
         bonus.TotalEmployees = employees.Count;
-        bonus.Status = AnnualBonusStatus.Calculado;
-        bonus.UpdatedAt = DateTime.UtcNow;
+        bonus.Status         = AnnualBonusStatus.Calculado;
+        bonus.UpdatedAt      = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
@@ -236,35 +245,35 @@ var periodEnd = new DateTime(dto.Year, 11, 30);
     {
         var dto = new AnnualBonusDto
         {
-            Id = ab.Id,
-            Year = ab.Year,
-            PeriodStartDate = ab.PeriodStartDate,
-            PeriodEndDate = ab.PeriodEndDate,
-            Status = ab.Status.ToString(),
-            TotalAmount = ab.TotalAmount,
-            TotalEmployees = ab.TotalEmployees,
-            CalculatedByName = ab.CalculatedBy?.Username ?? string.Empty,
-            CalculatedAt = ab.CalculatedAt,
-            ApprovedByName = ab.ApprovedBy?.Username,
-            ApprovedAt = ab.ApprovedAt,
-            Notes = ab.Notes,
-            CreatedAt = ab.CreatedAt
+            Id                = ab.Id,
+            Year              = ab.Year,
+            PeriodStartDate   = ab.PeriodStartDate,
+            PeriodEndDate     = ab.PeriodEndDate,
+            Status            = ab.Status.ToString(),
+            TotalAmount       = ab.TotalAmount,
+            TotalEmployees    = ab.TotalEmployees,
+            CalculatedByName  = ab.CalculatedBy?.Username ?? string.Empty,
+            CalculatedAt      = ab.CalculatedAt,
+            ApprovedByName    = ab.ApprovedBy?.Username,
+            ApprovedAt        = ab.ApprovedAt,
+            Notes             = ab.Notes,
+            CreatedAt         = ab.CreatedAt
         };
 
         if (includeDetails)
         {
             dto.Details = ab.Details.Select(d => new AnnualBonusDetailDto
             {
-                Id = d.Id,
-                EmployeeId = d.EmployeeId,
-                EmployeeName = d.Employee?.FullName ?? string.Empty,
-                PositionName = d.Employee?.Position?.Name,
-                WorkedMonths = d.WorkedMonths,
-                AverageSalary = d.AverageSalary,
+                Id                 = d.Id,
+                EmployeeId         = d.EmployeeId,
+                EmployeeName       = d.Employee?.FullName ?? string.Empty,
+                PositionName       = d.Employee?.Position?.Name,
+                WorkedMonths       = d.WorkedMonths,
+                AverageSalary      = d.AverageSalary,
                 ProportionalAmount = d.ProportionalAmount,
-                Deductions = d.Deductions,
-                NetAmount = d.NetAmount,
-                Notes = d.Notes
+                Deductions         = d.Deductions,
+                NetAmount          = d.NetAmount,
+                Notes              = d.Notes
             }).ToList();
         }
 

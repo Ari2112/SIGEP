@@ -177,9 +177,10 @@ public class PayrollService : IPayrollService
 
             decimal detailDeductions = 0;
             decimal detailBenefits = 0;
-
 // Salario mensual equivalente para calcular renta correctamente
-decimal monthlyEquivalent = periodType == PayrollPeriodType.Mensual
+// periodType es una entidad con campo Name, no un enum
+bool isMensual = IsMonthlyPeriod(periodType.Name);
+decimal monthlyEquivalent = isMensual
     ? grossSalary
     : grossSalary * 2;
 
@@ -192,7 +193,7 @@ foreach (var dedType in deductionTypes)
         // Impuesto sobre la renta con tramos progresivos CR
         decimal monthlyTax = CalculateIncomeTax(monthlyEquivalent);
         // Si es quincenal, cobrar la mitad del impuesto mensual
-        amount = periodType == PayrollPeriodType.Mensual
+        amount = isMensual
             ? monthlyTax
             : Math.Round(monthlyTax / 2, 2);
     }
@@ -236,7 +237,8 @@ foreach (var dedType in deductionTypes)
 
             detail.TotalDeductions = detailDeductions;
 detail.TotalBenefits = detailBenefits;
-// Cargas patronales son costo del patrono, NO se suman al neto del empleado
+// Las cargas patronales (BenefitTypes) son costo del patrono
+// NO se suman al salario neto del empleado
 detail.NetSalary = grossSalary - detailDeductions;
 
             _context.PayrollDetails.Add(detail);
