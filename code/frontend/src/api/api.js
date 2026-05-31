@@ -95,8 +95,8 @@ export const attendanceAPI = {
   getByEmployee: (employeeId, dateFrom, dateTo) =>
     apiClient.get(`/attendance/employee/${employeeId}`, { params: { dateFrom, dateTo } }),
   getAll: (filters) => apiClient.get('/attendance', { params: filters }),
-  checkIn: (notes) => apiClient.post('/attendance/check-in', { notes }),
-  checkOut: (notes) => apiClient.post('/attendance/check-out', { notes }),
+  checkIn: (data) => apiClient.post('/attendance/check-in', data ?? {}),
+checkOut: (data) => apiClient.post('/attendance/check-out', data ?? {}),
 };
 
 export const overtimeAPI = {

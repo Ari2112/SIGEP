@@ -75,7 +75,8 @@ public class ReportService : IReportService
             decimal attendanceRate = totalDays > 0
                 ? Math.Round((decimal)presentDays / totalDays * 100, 1)
                 : 0;
-
+                 int lateDays = records.Count(r => r.IsLate);
+            int totalLateMinutes = records.Sum(r => r.LateMinutes);
             result.Add(new AttendanceReportDto
             {
                 EmployeeId = emp.Id,
@@ -88,7 +89,9 @@ public class ReportService : IReportService
                 VacationDays = vacationDays,
                 DisabilityDays = disabilityDays,
                 TotalWorkedHours = totalHours,
-                AttendanceRate = attendanceRate
+                AttendanceRate = attendanceRate,
+                LateDays = lateDays,
+                TotalLateMinutes = totalLateMinutes
             });
         }
 

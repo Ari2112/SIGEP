@@ -126,6 +126,8 @@ function Reports() {
                   <th>Vacaciones</th>
                   <th>Incapacidades</th>
                   <th>Horas Trab.</th>
+                  <th>Tardías</th>
+                  <th>Min. Tarde</th>
                   <th>% Asistencia</th>
                 </tr>
               </thead>
@@ -146,6 +148,16 @@ function Reports() {
                       <td>{r.vacationDays}</td>
                       <td>{r.disabilityDays}</td>
                       <td>{r.totalWorkedHours}h</td>
+                      <td>
+                        {r.lateDays > 0
+                          ? <span className="badge badge-warning">{r.lateDays}</span>
+                          : <span className="badge badge-success">0</span>}
+                      </td>
+                      <td>
+                        {r.totalLateMinutes > 0
+                          ? <span style={{color:'#e74c3c'}}>{r.totalLateMinutes} min</span>
+                          : '-'}
+                      </td>
                       <td>
                         <div className="progress-bar">
                           <div className="progress-fill" style={{ width: `${r.attendanceRate}%` }} />

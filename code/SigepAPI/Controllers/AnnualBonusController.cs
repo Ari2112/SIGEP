@@ -8,7 +8,7 @@ namespace SigepAPI.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-[Authorize(Roles = "Admin,RRHH")]
+[Authorize(Roles = "Admin,Administrador,RRHH")]
 public class AnnualBonusController : ControllerBase
 {
     private readonly IAnnualBonusService _annualBonusService;

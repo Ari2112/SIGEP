@@ -8,7 +8,7 @@ namespace SigepAPI.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-[Authorize(Roles = "Admin,RRHH")]
+[Authorize(Roles = "Admin,Administrador,RRHH")]
 public class PayrollController : ControllerBase
 {
     private readonly IPayrollService _payrollService;
@@ -80,7 +80,7 @@ public class PayrollController : ControllerBase
 
     /// <summary>Anula una planilla (HU-5.4)</summary>
     [HttpPost("{id}/annul")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Administrador")]
     public async Task<ActionResult<PayrollDto>> Annul(int id, [FromBody] ApprovePayrollDto dto)
     {
         try

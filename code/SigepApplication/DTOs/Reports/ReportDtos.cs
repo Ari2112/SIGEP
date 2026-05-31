@@ -13,6 +13,8 @@ public class AttendanceReportDto
     public int DisabilityDays { get; set; }
     public decimal TotalWorkedHours { get; set; }
     public decimal AttendanceRate { get; set; }
+    public int LateDays { get; set; }
+    public int TotalLateMinutes { get; set; }
 }
 
 public class OvertimeReportDto

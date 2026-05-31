@@ -122,7 +122,7 @@ public class OvertimeService : IOvertimeService
         return MapToDto(record);
     }
 
-    public async Task DetectOvertimeFromAttendanceAsync(int attendanceId)
+public async Task DetectOvertimeFromAttendanceAsync(int attendanceId, string? reason = null)
     {
         var attendance = await _context.AttendanceRecords
             .Include(a => a.Employee)
@@ -169,20 +169,21 @@ public class OvertimeService : IOvertimeService
             decimal multiplier = (isFeriado || isNocturna) ? 2.0m : 1.5m;
 
             var overtimeRecord = new OvertimeRecord
-            {
-                EmployeeId     = attendance.EmployeeId,
-                AttendanceId   = attendanceId,
-                Date           = attendance.Date,
-                StartTime      = overtimeStart,
-                EndTime        = overtimeEnd,
-                TotalHours     = Math.Round(overtimeHours, 2),
-                HourlyRate     = Math.Round(hourlyRate, 2),
-                MultiplierRate = multiplier,
-                TotalAmount    = Math.Round(hourlyRate * multiplier * overtimeHours, 2),
-                Status         = OvertimeStatus.Detectada,
-                DetectionType  = OvertimeDetectionType.Automatica,
-                CreatedAt      = DateTime.UtcNow
-            };
+{
+    EmployeeId     = attendance.EmployeeId,
+    AttendanceId   = attendanceId,
+    Date           = attendance.Date,
+    StartTime      = overtimeStart,
+    EndTime        = overtimeEnd,
+    TotalHours     = Math.Round(overtimeHours, 2),
+    HourlyRate     = Math.Round(hourlyRate, 2),
+    MultiplierRate = multiplier,
+    TotalAmount    = Math.Round(hourlyRate * multiplier * overtimeHours, 2),
+    Status         = OvertimeStatus.Detectada,
+    DetectionType  = OvertimeDetectionType.Automatica,
+    Reason         = reason,
+    CreatedAt      = DateTime.UtcNow
+};
 
             _context.OvertimeRecords.Add(overtimeRecord);
             await _context.SaveChangesAsync();

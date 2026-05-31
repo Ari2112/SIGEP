@@ -8,7 +8,7 @@ namespace SigepAPI.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-[Authorize(Roles = "Admin,RRHH")]
+[Authorize(Roles = "Admin,Administrador,RRHH")]
 public class SettlementController : ControllerBase
 {
     private readonly ISettlementService _settlementService;
@@ -91,7 +91,7 @@ public class SettlementController : ControllerBase
 
     /// <summary>Marca una liquidación como pagada y liquida al empleado (HU-6.3)</summary>
     [HttpPost("{id}/pay")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Administrador")]
     public async Task<ActionResult<SettlementDto>> MarkAsPaid(int id)
     {
         try

@@ -16,6 +16,7 @@ public class OvertimeRecord
     public OvertimeDetectionType DetectionType { get; set; } = OvertimeDetectionType.Automatica;
     public int? ReviewedById { get; set; }
     public DateTime? ReviewedAt { get; set; }
+    public string? Reason { get; set; }
     public string? ReviewComments { get; set; }
     public int? PayrollDetailId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

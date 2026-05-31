@@ -31,7 +31,7 @@ public class OvertimeController : ControllerBase
     /// Obtiene todas las horas extra con filtros (Admin/RRHH) (HU-4.1, HU-4.4)
     /// </summary>
     [HttpGet]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<IEnumerable<OvertimeRecordDto>>> GetAll([FromQuery] OvertimeFilterDto? filter)
     {
         var records = await _overtimeService.GetAllAsync(filter);
@@ -56,7 +56,7 @@ public class OvertimeController : ControllerBase
     /// Obtiene las horas extra de un empleado específico (Admin/RRHH)
     /// </summary>
     [HttpGet("employee/{employeeId}")]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<IEnumerable<OvertimeRecordDto>>> GetByEmployee(
         int employeeId,
         [FromQuery] OvertimeFilterDto? filter)
@@ -87,7 +87,7 @@ public class OvertimeController : ControllerBase
     /// Aprueba o rechaza horas extra (Admin/RRHH) (HU-4.2)
     /// </summary>
     [HttpPost("{id}/review")]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<OvertimeRecordDto>> Review(int id, [FromBody] ReviewOvertimeDto dto)
     {
         try

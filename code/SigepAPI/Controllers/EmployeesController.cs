@@ -39,7 +39,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,RRHH")]
+   [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<EmployeeDto>> Create([FromBody] CreateEmployeeDto dto)
     {
         try
@@ -72,8 +72,8 @@ public class EmployeesController : ControllerBase
         }
     }
 
-    [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
+  [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin,Administrador")]
     public async Task<IActionResult> Deactivate(int id)
     {
         try
@@ -95,7 +95,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPost("positions")]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<PositionDto>> CreatePosition([FromBody] CreatePositionDto dto)
     {
         var position = await _employeeService.CreatePositionAsync(dto);
@@ -110,7 +110,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPost("schedules")]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<ScheduleDto>> CreateSchedule([FromBody] CreateScheduleDto dto)
     {
         var schedule = await _employeeService.CreateScheduleAsync(dto);

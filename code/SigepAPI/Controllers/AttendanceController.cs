@@ -61,7 +61,7 @@ public class AttendanceController : ControllerBase
     /// Obtiene registros de asistencia de un empleado específico (Admin/RRHH)
     /// </summary>
     [HttpGet("employee/{employeeId}")]
-    [Authorize(Roles = "Admin,RRHH,Jefatura")]
+    [Authorize(Roles = "Admin,Administrador,RRHH,Jefatura")]
     public async Task<ActionResult<IEnumerable<AttendanceRecordDto>>> GetByEmployee(
         int employeeId,
         [FromQuery] DateTime? dateFrom,
@@ -75,7 +75,7 @@ public class AttendanceController : ControllerBase
     /// Obtiene todos los registros con filtros opcionales (Admin/RRHH)
     /// </summary>
     [HttpGet]
-    [Authorize(Roles = "Admin,RRHH,Jefatura")]
+    [Authorize(Roles = "Admin,Administrador,RRHH,Jefatura")]
     public async Task<ActionResult<IEnumerable<AttendanceRecordDto>>> GetAll([FromQuery] AttendanceFilterDto? filter)
     {
         var records = await _attendanceService.GetAllRecordsAsync(filter);
@@ -110,25 +110,57 @@ public class AttendanceController : ControllerBase
     /// <summary>
     /// Registra la salida del empleado actual (HU-3.1)
     /// </summary>
-    [HttpPost("check-out")]
-    public async Task<ActionResult<AttendanceRecordDto>> CheckOut([FromBody] CheckOutDto? dto)
+[HttpPost("check-out")]
+public async Task<ActionResult<AttendanceRecordDto>> CheckOut([FromBody] CheckOutDto? dto)
+{
+    try
     {
-        try
-        {
-            var employeeId = GetEmployeeId();
-            if (!employeeId.HasValue)
-                return BadRequest(new { message = "Usuario no tiene empleado asociado" });
+        var employeeId = GetEmployeeId();
+        if (!employeeId.HasValue)
+            return BadRequest(new { message = "Usuario no tiene empleado asociado" });
 
-            var record = await _attendanceService.CheckOutAsync(employeeId.Value, GetUserId(), dto?.Notes);
-            return Ok(record);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var record = await _attendanceService.CheckOutAsync(
+            employeeId.Value,
+            GetUserId(),
+            dto?.Notes,
+            dto?.OvertimeReason);
+
+        return Ok(record);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Conflict(new { message = ex.Message });
+    }
+    catch (ArgumentException ex)
+    {
+        return BadRequest(new { message = ex.Message });
     }
 }
+
+/// <summary>
+/// Reporte de tardías por período (Admin/RRHH)
+/// </summary>
+[HttpGet("report/lateness")]
+[Authorize(Roles = "Admin,Administrador,RRHH,Jefatura")]
+public async Task<ActionResult<IEnumerable<LatenessReportDto>>> GetLatenessReport(
+    [FromQuery] DateTime dateFrom,
+    [FromQuery] DateTime dateTo,
+    [FromQuery] int? employeeId = null)
+{
+    var report = await _attendanceService.GetLatenessReportAsync(dateFrom, dateTo, employeeId);
+    return Ok(report);
+}
+
+/// <summary>
+/// Resumen de asistencia por empleado (Admin/RRHH)
+/// </summary>
+[HttpGet("report/summary")]
+[Authorize(Roles = "Admin,Administrador,RRHH,Jefatura")]
+public async Task<ActionResult<IEnumerable<AttendanceSummaryDto>>> GetAttendanceSummary(
+    [FromQuery] DateTime dateFrom,
+    [FromQuery] DateTime dateTo)
+{
+    var summary = await _attendanceService.GetAttendanceSummaryAsync(dateFrom, dateTo);
+    return Ok(summary);
+}
+    }

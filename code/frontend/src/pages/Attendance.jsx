@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { attendanceAPI, employeeAPI } from '../api/api';
-import { USE_MOCK, getTodayAttendance, getMyAttendanceRecords, getAllAttendanceRecords, mockEmployeesDetailed, mockAttendanceRecords } from '../api/mockData';
 import Layout from '../components/Layout';
 import './Attendance.css';
-
-// Variable local para simular cambios en mock
-let mockTodayRecord = null;
 
 function Attendance() {
   const { user } = useAuth();
@@ -19,37 +15,27 @@ function Attendance() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [filters, setFilters] = useState({
-    employeeId: '',
-    dateFrom: '',
-    dateTo: ''
-  });
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [filters, setFilters] = useState({ employeeId: '', dateFrom: '', dateTo: '' });
 
-  const isManager = user?.role === 'Admin' || user?.role === 'RRHH' || user?.role === 'Jefatura';
+  // Modal para motivo de horas extra
+  const [showOvertimeModal, setShowOvertimeModal] = useState(false);
+  const [overtimeReason, setOvertimeReason] = useState('');
 
+  const isManager = ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura'].includes(user?.role);
+
+  // Reloj en tiempo real
   useEffect(() => {
-    loadData();
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError('');
-
-      // ============ MOCK DATA ============
-      if (USE_MOCK) {
-        const employeeId = user?.employeeId || 4;
-        const existingTodayRecord = getTodayAttendance(employeeId);
-        setTodayRecord(mockTodayRecord || existingTodayRecord);
-        setMyRecords(getMyAttendanceRecords(employeeId));
-        if (isManager) {
-          setAllRecords(getAllAttendanceRecords());
-          setEmployees(mockEmployeesDetailed);
-        }
-        setLoading(false);
-        return;
-      }
-      // ============ FIN MOCK DATA ============
 
       const [todayRes, myRes] = await Promise.all([
         attendanceAPI.getToday(),
@@ -78,31 +64,15 @@ function Attendance() {
     setActionLoading(true);
     setError('');
     setSuccessMessage('');
-    
-    // ============ MOCK CHECK IN ============
-    if (USE_MOCK) {
-      const now = new Date();
-      mockTodayRecord = {
-        id: Date.now(),
-        employeeId: user?.employeeId || 4,
-        employeeName: user?.fullName || 'Usuario',
-        date: now.toISOString().split('T')[0],
-        checkInTime: now.toISOString(),
-        checkOutTime: null,
-        workedHours: null,
-        status: 'Parcial'
-      };
-      setTodayRecord(mockTodayRecord);
-      setSuccessMessage('Entrada registrada exitosamente');
-      setActionLoading(false);
-      return;
-    }
-    // ============ FIN MOCK CHECK IN ============
-    
     try {
       const res = await attendanceAPI.checkIn();
       setTodayRecord(res.data);
-      setSuccessMessage('Entrada registrada exitosamente');
+      // Mostrar aviso de tardía si aplica
+      if (res.data.isLate) {
+        setSuccessMessage(`Entrada registrada — TARDÍA: ${res.data.lateMinutes} minutos después del horario`);
+      } else {
+        setSuccessMessage('Entrada registrada exitosamente');
+      }
       loadData();
     } catch (err) {
       setError(err.response?.data?.message || 'Error al registrar entrada');
@@ -111,33 +81,45 @@ function Attendance() {
     }
   };
 
-  const handleCheckOut = async () => {
+  // Verificar si es posible que tenga horas extra antes de mostrar modal
+  const handleCheckOutClick = () => {
+    if (todayRecord?.scheduledEndTime) {
+      const now = new Date();
+      const [h, m] = todayRecord.scheduledEndTime.split(':');
+      const scheduled = new Date();
+      scheduled.setHours(parseInt(h), parseInt(m), 0);
+      // Si son más de 10 minutos después del horario, pedir motivo
+      if ((now - scheduled) > 10 * 60 * 1000) {
+        setShowOvertimeModal(true);
+        return;
+      }
+    }
+    executeCheckOut(null);
+  };
+
+  const handleOvertimeConfirm = () => {
+    if (!overtimeReason.trim()) {
+      setError('Debe ingresar el motivo de las horas extra');
+      return;
+    }
+    setShowOvertimeModal(false);
+    executeCheckOut(overtimeReason);
+    setOvertimeReason('');
+  };
+
+  const executeCheckOut = async (reason) => {
     setActionLoading(true);
     setError('');
     setSuccessMessage('');
-    
-    // ============ MOCK CHECK OUT ============
-    if (USE_MOCK) {
-      const now = new Date();
-      const checkIn = new Date(mockTodayRecord.checkInTime);
-      const workedHours = (now - checkIn) / (1000 * 60 * 60);
-      mockTodayRecord = {
-        ...mockTodayRecord,
-        checkOutTime: now.toISOString(),
-        workedHours: workedHours,
-        status: 'Completo'
-      };
-      setTodayRecord(mockTodayRecord);
-      setSuccessMessage('Salida registrada exitosamente');
-      setActionLoading(false);
-      return;
-    }
-    // ============ FIN MOCK CHECK OUT ============
-    
     try {
-      const res = await attendanceAPI.checkOut();
+      const res = await attendanceAPI.checkOut({ overtimeReason: reason });
       setTodayRecord(res.data);
-      setSuccessMessage('Salida registrada exitosamente');
+      const horasExtra = res.data.overtimeHours;
+      if (horasExtra && horasExtra > 0) {
+        setSuccessMessage(`Salida registrada — ${horasExtra.toFixed(2)} horas extra detectadas y enviadas para aprobación`);
+      } else {
+        setSuccessMessage('Salida registrada exitosamente');
+      }
       loadData();
     } catch (err) {
       setError(err.response?.data?.message || 'Error al registrar salida');
@@ -164,19 +146,12 @@ function Attendance() {
 
   const formatTime = (dateStr) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleTimeString('es-CR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return new Date(dateStr).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('es-CR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    return new Date(dateStr).toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
   const getStatusBadge = (status) => {
@@ -191,16 +166,10 @@ function Attendance() {
     return <span className={`badge ${map[status] || 'badge-secondary'}`}>{status}</span>;
   };
 
-  const canCheckIn = !todayRecord;
+  const canCheckIn  = !todayRecord;
   const canCheckOut = todayRecord && todayRecord.checkInTime && !todayRecord.checkOutTime;
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="loading">Cargando...</div>
-      </Layout>
-    );
-  }
+  if (loading) return <Layout><div className="loading">Cargando...</div></Layout>;
 
   return (
     <Layout>
@@ -214,25 +183,10 @@ function Attendance() {
 
         {/* Tabs */}
         <div className="tabs">
-          <button
-            className={`tab ${activeTab === 'today' ? 'active' : ''}`}
-            onClick={() => setActiveTab('today')}
-          >
-            Hoy
-          </button>
-          <button
-            className={`tab ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => setActiveTab('history')}
-          >
-            Mi Historial
-          </button>
+          <button className={`tab ${activeTab === 'today' ? 'active' : ''}`} onClick={() => setActiveTab('today')}>Hoy</button>
+          <button className={`tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>Mi Historial</button>
           {isManager && (
-            <button
-              className={`tab ${activeTab === 'all' ? 'active' : ''}`}
-              onClick={() => setActiveTab('all')}
-            >
-              Todos los Registros
-            </button>
+            <button className={`tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>Todos los Registros</button>
           )}
         </div>
 
@@ -241,13 +195,21 @@ function Attendance() {
           <div className="today-panel">
             <div className="today-card">
               <h2>Registro del Día</h2>
-              <p className="today-date">{new Date().toLocaleDateString('es-CR', {
-                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-              })}</p>
+              <p className="today-date">
+                {currentTime.toLocaleDateString('es-CR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
 
               <div className="clock-display">
-                {new Date().toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' })}
+                {currentTime.toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
+
+              {/* Horario del empleado */}
+              {todayRecord?.scheduledStartTime && (
+                <div className="schedule-info">
+                  <span>Horario: {todayRecord.scheduledStartTime.substring(0,5)} — {todayRecord.scheduledEndTime?.substring(0,5)}</span>
+                  {todayRecord.scheduleName && <span className="schedule-name"> ({todayRecord.scheduleName})</span>}
+                </div>
+              )}
 
               {todayRecord ? (
                 <div className="today-status">
@@ -266,7 +228,21 @@ function Attendance() {
                         <span className="time-value">{parseFloat(todayRecord.workedHours).toFixed(2)}h</span>
                       </div>
                     )}
+                    {todayRecord.overtimeHours > 0 && (
+                      <div className="time-block">
+                        <span className="time-label">Horas Extra</span>
+                        <span className="time-value" style={{color:'#e67e22'}}>{parseFloat(todayRecord.overtimeHours).toFixed(2)}h</span>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Alerta de tardía */}
+                  {todayRecord.isLate && (
+                    <div className="alert alert-warning" style={{marginTop:'10px'}}>
+                      ⚠ Tardía detectada: {todayRecord.lateMinutes} minutos después del horario
+                    </div>
+                  )}
+
                   <div className="status-display">
                     {getStatusBadge(todayRecord.status)}
                   </div>
@@ -285,7 +261,7 @@ function Attendance() {
                 </button>
                 <button
                   className="btn btn-secondary btn-lg"
-                  onClick={handleCheckOut}
+                  onClick={handleCheckOutClick}
                   disabled={!canCheckOut || actionLoading}
                 >
                   {actionLoading ? 'Procesando...' : 'Registrar Salida'}
@@ -309,12 +285,14 @@ function Attendance() {
                   <th>Entrada</th>
                   <th>Salida</th>
                   <th>Horas</th>
+                  <th>Tardía</th>
+                  <th>H. Extra</th>
                   <th>Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {myRecords.length === 0 ? (
-                  <tr><td colSpan="5" className="no-data">No hay registros de asistencia</td></tr>
+                  <tr><td colSpan="7" className="no-data">No hay registros de asistencia</td></tr>
                 ) : (
                   myRecords.map(rec => (
                     <tr key={rec.id}>
@@ -322,6 +300,12 @@ function Attendance() {
                       <td>{formatTime(rec.checkInTime)}</td>
                       <td>{formatTime(rec.checkOutTime)}</td>
                       <td>{rec.workedHours ? `${parseFloat(rec.workedHours).toFixed(2)}h` : '-'}</td>
+                      <td>
+                        {rec.isLate
+                          ? <span style={{color:'#e74c3c'}}>⚠ {rec.lateMinutes} min</span>
+                          : <span style={{color:'#27ae60'}}>✓</span>}
+                      </td>
+                      <td>{rec.overtimeHours > 0 ? `${parseFloat(rec.overtimeHours).toFixed(2)}h` : '-'}</td>
                       <td>{getStatusBadge(rec.status)}</td>
                     </tr>
                   ))
@@ -335,27 +319,14 @@ function Attendance() {
         {activeTab === 'all' && isManager && (
           <div className="table-card">
             <div className="filters-bar">
-              <select
-                value={filters.employeeId}
-                onChange={e => setFilters({ ...filters, employeeId: e.target.value })}
-              >
+              <select value={filters.employeeId} onChange={e => setFilters({ ...filters, employeeId: e.target.value })}>
                 <option value="">Todos los empleados</option>
                 {employees.map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.fullName || `${emp.firstName} ${emp.lastName}`}</option>
                 ))}
               </select>
-              <input
-                type="date"
-                value={filters.dateFrom}
-                onChange={e => setFilters({ ...filters, dateFrom: e.target.value })}
-                placeholder="Desde"
-              />
-              <input
-                type="date"
-                value={filters.dateTo}
-                onChange={e => setFilters({ ...filters, dateTo: e.target.value })}
-                placeholder="Hasta"
-              />
+              <input type="date" value={filters.dateFrom} onChange={e => setFilters({ ...filters, dateFrom: e.target.value })} />
+              <input type="date" value={filters.dateTo} onChange={e => setFilters({ ...filters, dateTo: e.target.value })} />
               <button className="btn btn-primary" onClick={handleFilter}>Filtrar</button>
             </div>
 
@@ -367,12 +338,14 @@ function Attendance() {
                   <th>Entrada</th>
                   <th>Salida</th>
                   <th>Horas</th>
+                  <th>Tardía</th>
+                  <th>H. Extra</th>
                   <th>Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {allRecords.length === 0 ? (
-                  <tr><td colSpan="6" className="no-data">No hay registros</td></tr>
+                  <tr><td colSpan="8" className="no-data">No hay registros</td></tr>
                 ) : (
                   allRecords.map(rec => (
                     <tr key={rec.id}>
@@ -381,12 +354,50 @@ function Attendance() {
                       <td>{formatTime(rec.checkInTime)}</td>
                       <td>{formatTime(rec.checkOutTime)}</td>
                       <td>{rec.workedHours ? `${parseFloat(rec.workedHours).toFixed(2)}h` : '-'}</td>
+                      <td>
+                        {rec.isLate
+                          ? <span style={{color:'#e74c3c'}}>⚠ {rec.lateMinutes} min</span>
+                          : <span style={{color:'#27ae60'}}>✓</span>}
+                      </td>
+                      <td>{rec.overtimeHours > 0 ? `${parseFloat(rec.overtimeHours).toFixed(2)}h` : '-'}</td>
                       <td>{getStatusBadge(rec.status)}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Modal motivo horas extra */}
+        {showOvertimeModal && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header">
+                <h2>Motivo de Horas Extra</h2>
+              </div>
+              <p style={{marginBottom:'12px', color:'#555'}}>
+                Está registrando salida después del horario laboral. Debe indicar el motivo de las horas extra.
+              </p>
+              <div className="form-group">
+                <label>Motivo *</label>
+                <textarea
+                  value={overtimeReason}
+                  onChange={e => setOvertimeReason(e.target.value)}
+                  rows="3"
+                  placeholder="Ej: Inventario, Atención de emergencia, Carga de trabajo..."
+                  style={{width:'100%', padding:'8px', borderRadius:'6px', border:'1px solid #ddd'}}
+                />
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-secondary" onClick={() => { setShowOvertimeModal(false); setOvertimeReason(''); }}>
+                  Cancelar
+                </button>
+                <button className="btn btn-primary" onClick={handleOvertimeConfirm}>
+                  Registrar Salida
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
