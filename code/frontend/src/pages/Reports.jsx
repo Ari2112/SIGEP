@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { reportAPI, payrollAPI } from '../api/api';
+import { reportAPI, payrollAPI, employeeAPI } from '../api/api';
 import Layout from '../components/Layout';
 import './Reports.css';
+
+const API_URL = 'http://localhost:5017/api/v1';
+const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 function Reports() {
   const [activeTab, setActiveTab] = useState('attendance');
@@ -9,7 +12,9 @@ function Reports() {
   const [overtimeReport, setOvertimeReport] = useState([]);
   const [payrollReport, setPayrollReport] = useState(null);
   const [payrolls, setPayrolls] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [selectedPayroll, setSelectedPayroll] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({
@@ -17,12 +22,22 @@ function Reports() {
     dateTo: new Date().toISOString().split('T')[0]
   });
 
-  useEffect(() => { loadPayrolls(); }, []);
+  useEffect(() => {
+    loadPayrolls();
+    loadEmployees();
+  }, []);
 
   const loadPayrolls = async () => {
     try {
       const res = await payrollAPI.getAll();
       setPayrolls(res.data);
+    } catch (_) {}
+  };
+
+  const loadEmployees = async () => {
+    try {
+      const res = await employeeAPI.getAll();
+      setEmployees(res.data);
     } catch (_) {}
   };
 
@@ -66,9 +81,48 @@ function Reports() {
     }
   };
 
-  const formatCurrency = (v) => new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 0 }).format(v || 0);
+  // Descarga PDF con token JWT
+  const downloadWithToken = (url, filename) => {
+    const token = localStorage.getItem('token');
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (!res.ok) throw new Error('Error al generar PDF');
+        return res.blob();
+      })
+      .then(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(() => setError('Error al descargar el PDF'));
+  };
 
-  const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const downloadPayrollPdf = () => {
+    if (!selectedPayroll) { setError('Seleccione una planilla'); return; }
+    const planilla = payrolls.find(p => p.id === parseInt(selectedPayroll));
+    const nombre = planilla
+      ? `Planilla_${MONTHS[planilla.periodMonth - 1]}_${planilla.periodYear}.pdf`
+      : `Planilla_${selectedPayroll}.pdf`;
+    downloadWithToken(`${API_URL}/payroll/${selectedPayroll}/pdf`, nombre);
+  };
+
+  const downloadPayslipPdf = () => {
+    if (!selectedPayroll) { setError('Seleccione una planilla'); return; }
+    if (!selectedEmployee) { setError('Seleccione un empleado para la colilla individual'); return; }
+    const emp = employees.find(e => e.id === parseInt(selectedEmployee));
+    const nombre = emp
+      ? `Colilla_${emp.fullName?.replace(/ /g, '_')}.pdf`
+      : `Colilla_${selectedEmployee}.pdf`;
+    downloadWithToken(
+      `${API_URL}/payroll/${selectedPayroll}/pdf/employee/${selectedEmployee}`,
+      nombre
+    );
+  };
+
+  const formatCurrency = (v) =>
+    new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 0 }).format(v || 0);
 
   return (
     <Layout>
@@ -94,7 +148,7 @@ function Reports() {
           </button>
         </div>
 
-        {/* Filtro de fechas (asistencia y horas extra) */}
+        {/* Filtros asistencia y horas extra */}
         {(activeTab === 'attendance' || activeTab === 'overtime') && (
           <div className="filters-bar">
             <label>Desde:</label>
@@ -133,7 +187,7 @@ function Reports() {
               </thead>
               <tbody>
                 {attendanceReport.length === 0 ? (
-                  <tr><td colSpan="10" className="no-data">
+                  <tr><td colSpan="12" className="no-data">
                     {loading ? 'Cargando...' : 'Seleccione un período y genere el reporte'}
                   </td></tr>
                 ) : (
@@ -212,12 +266,12 @@ function Reports() {
           </div>
         )}
 
-        {/* Reporte Planilla */}
+        {/* Reporte Planilla con PDF */}
         {activeTab === 'payroll' && (
           <>
-            <div className="filters-bar">
-              <select value={selectedPayroll}
-                onChange={e => setSelectedPayroll(e.target.value)}>
+            {/* Filtros */}
+            <div className="filters-bar" style={{ flexWrap: 'wrap', gap: '10px' }}>
+              <select value={selectedPayroll} onChange={e => { setSelectedPayroll(e.target.value); setPayrollReport(null); }}>
                 <option value="">Seleccione una planilla...</option>
                 {payrolls.map(p => (
                   <option key={p.id} value={p.id}>
@@ -225,10 +279,43 @@ function Reports() {
                   </option>
                 ))}
               </select>
+
               <button className="btn btn-primary" onClick={loadPayrollReport} disabled={loading || !selectedPayroll}>
                 {loading ? 'Generando...' : 'Ver Reporte'}
               </button>
+
+              <button
+                className="btn btn-secondary"
+                onClick={downloadPayrollPdf}
+                disabled={!selectedPayroll}
+                title="Descarga PDF con todos los empleados"
+              >
+                📄 PDF General
+              </button>
             </div>
+
+            {/* Selector de empleado para colilla individual */}
+            {selectedPayroll && (
+              <div className="filters-bar" style={{ marginTop: '8px', flexWrap: 'wrap', gap: '10px' }}>
+                <label style={{ fontWeight: '500' }}>Colilla individual:</label>
+                <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}>
+                  <option value="">Seleccionar empleado...</option>
+                  {(payrollReport?.employees || employees).map(e => (
+                    <option key={e.employeeId || e.id} value={e.employeeId || e.id}>
+                      {e.employeeName || e.fullName}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="btn btn-secondary"
+                  onClick={downloadPayslipPdf}
+                  disabled={!selectedEmployee}
+                  title="Descarga colilla individual del empleado seleccionado"
+                >
+                  📄 Descargar Colilla
+                </button>
+              </div>
+            )}
 
             {payrollReport && (
               <>
@@ -260,22 +347,49 @@ function Reports() {
                         <th>Salario Base</th>
                         <th>Horas Extra</th>
                         <th>Bruto</th>
-                        <th>Deducciones</th>
+                        <th>CCSS Obrero</th>
+                        <th>Imp. Renta</th>
+                        <th>Total Ded.</th>
                         <th>Neto</th>
+                        <th>Colilla</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {payrollReport.employees.map((e, i) => (
-                        <tr key={i}>
-                          <td>{e.employeeName}</td>
-                          <td>{e.positionName || '-'}</td>
-                          <td>{formatCurrency(e.baseSalary)}</td>
-                          <td>{formatCurrency(e.overtimeAmount)}</td>
-                          <td>{formatCurrency(e.grossSalary)}</td>
-                          <td>{formatCurrency(e.totalDeductions)}</td>
-                          <td><strong>{formatCurrency(e.netSalary)}</strong></td>
-                        </tr>
-                      ))}
+                      {payrollReport.employees.map((e, i) => {
+                        const ccss = (e.deductions || [])
+                          .filter(d => d.deductionTypeName?.includes('CCSS') || d.deductionTypeName?.includes('Banco'))
+                          .reduce((sum, d) => sum + d.amount, 0);
+                        const renta = (e.deductions || [])
+                          .filter(d => d.deductionTypeName?.includes('Renta'))
+                          .reduce((sum, d) => sum + d.amount, 0);
+                        return (
+                          <tr key={i}>
+                            <td><strong>{e.employeeName}</strong></td>
+                            <td>{e.positionName || '-'}</td>
+                            <td>{formatCurrency(e.baseSalary)}</td>
+                            <td>{e.overtimeAmount > 0 ? formatCurrency(e.overtimeAmount) : '-'}</td>
+                            <td>{formatCurrency(e.grossSalary)}</td>
+                            <td style={{color:'#c0392b'}}>{ccss > 0 ? formatCurrency(ccss) : '-'}</td>
+                            <td style={{color:'#c0392b'}}>{renta > 0 ? formatCurrency(renta) : '-'}</td>
+                            <td style={{color:'#c0392b'}}>{formatCurrency(e.totalDeductions)}</td>
+                            <td><strong style={{color:'#1a6b1a'}}>{formatCurrency(e.netSalary)}</strong></td>
+                            <td>
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                onClick={() => {
+                                  setSelectedEmployee(e.employeeId);
+                                  downloadWithToken(
+                                    `${API_URL}/payroll/${selectedPayroll}/pdf/employee/${e.employeeId}`,
+                                    `Colilla_${e.employeeName?.replace(/ /g, '_')}.pdf`
+                                  );
+                                }}
+                              >
+                                PDF
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -24,7 +24,9 @@ public class AttendanceService : IAttendanceService
 
     public async Task<AttendanceRecordDto?> GetTodayRecordAsync(int employeeId)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = TimeZoneInfo.ConvertTimeFromUtc(
+    DateTime.UtcNow,
+    TimeZoneInfo.FindSystemTimeZoneById("America/Costa_Rica")).Date;
 
         var record = await _context.AttendanceRecords
             .Include(a => a.Employee)
@@ -98,7 +100,9 @@ public class AttendanceService : IAttendanceService
             .FirstOrDefaultAsync(e => e.Id == employeeId)
             ?? throw new ArgumentException("Empleado no encontrado");
 
-        var today = DateTime.UtcNow.Date;
+        var today = TimeZoneInfo.ConvertTimeFromUtc(
+    DateTime.UtcNow,
+    TimeZoneInfo.FindSystemTimeZoneById("America/Costa_Rica")).Date;
 
         // Validar que no exista ya una entrada hoy
         var existing = await _context.AttendanceRecords
@@ -108,7 +112,9 @@ public class AttendanceService : IAttendanceService
             throw new InvalidOperationException("Ya existe un registro de entrada para el día de hoy");
 
         var parcialStatus = await GetAttendanceStatusAsync("Parcial");
-        var now = DateTime.UtcNow;
+       var now = TimeZoneInfo.ConvertTimeFromUtc(
+    DateTime.UtcNow,
+    TimeZoneInfo.FindSystemTimeZoneById("America/Costa_Rica"));
 
         // Detectar tardía comparando con el horario del empleado
         bool isLate = false;
@@ -162,7 +168,9 @@ public class AttendanceService : IAttendanceService
         string? notes = null,
         string? overtimeReason = null)
     {
-        var today = DateTime.UtcNow.Date;
+       var today = TimeZoneInfo.ConvertTimeFromUtc(
+    DateTime.UtcNow,
+    TimeZoneInfo.FindSystemTimeZoneById("America/Costa_Rica")).Date;
 
         var record = await _context.AttendanceRecords
             .Include(a => a.Employee)
@@ -174,7 +182,9 @@ public class AttendanceService : IAttendanceService
         if (record.CheckOutTime.HasValue)
             throw new InvalidOperationException("Ya existe un registro de salida para el día de hoy");
 
-        var now = DateTime.UtcNow;
+        var now = TimeZoneInfo.ConvertTimeFromUtc(
+    DateTime.UtcNow,
+    TimeZoneInfo.FindSystemTimeZoneById("America/Costa_Rica"));
         var schedule = record.Employee?.Schedule;
 
         // Verificar si salida es después del horario — exigir motivo

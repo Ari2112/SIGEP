@@ -144,15 +144,23 @@ function Attendance() {
     }
   };
 
-  const formatTime = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' });
-  };
+const formatTime = (dateStr) => {
+  if (!dateStr) return '-';
+  const d = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+  return new Date(d).toLocaleTimeString('es-CR', {
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'America/Costa_Rica'
+  });
+};
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  };
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  const d = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+  return new Date(d).toLocaleDateString('es-CR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    timeZone: 'America/Costa_Rica'
+  });
+};
 
   const getStatusBadge = (status) => {
     const map = {

@@ -8,6 +8,8 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 const PERIOD_TYPES = { PrimeraQuincena: 'Primera Quincena', SegundaQuincena: 'Segunda Quincena', Mensual: 'Mensual' };
 const STATUS_COLORS = { Borrador: 'badge-secondary', Procesando: 'badge-warning', Completada: 'badge-success', Anulada: 'badge-danger' };
 
+const API_URL = 'http://localhost:5017/api/v1';
+
 function Payroll() {
   const { user } = useAuth();
   const [payrolls, setPayrolls] = useState([]);
@@ -78,6 +80,40 @@ function Payroll() {
     }
   };
 
+  const downloadPdf = (payrollId) => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_URL}/payroll/${payrollId}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Planilla_${payrollId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => setError('Error al generar PDF'));
+  };
+
+  const downloadPayslip = (payrollId, employeeId, employeeName) => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_URL}/payroll/${payrollId}/pdf/employee/${employeeId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Colilla_${employeeName?.replace(/ /g, '_')}_${payrollId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => setError('Error al generar colilla'));
+  };
+
   const formatCurrency = (v) => new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 0 }).format(v);
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-CR') : '-';
 
@@ -128,8 +164,9 @@ function Payroll() {
                     <td><strong>{formatCurrency(p.totalNetSalary)}</strong></td>
                     <td><span className={`badge ${STATUS_COLORS[p.status] || 'badge-secondary'}`}>{p.status}</span></td>
                     <td>{formatDate(p.createdAt)}</td>
-                    <td>
+                    <td style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       <button className="btn btn-sm btn-ghost" onClick={() => handleViewDetail(p.id)}>Ver</button>
+                      <button className="btn btn-sm btn-primary" onClick={() => downloadPdf(p.id)}>PDF</button>
                       {p.status === 'Completada' && !p.approvedAt && (
                         <button className="btn btn-sm btn-success" onClick={() => handleApprove(p.id)}>Aprobar</button>
                       )}
@@ -232,6 +269,7 @@ function Payroll() {
                       <th>Bruto</th>
                       <th>Deducciones</th>
                       <th>Neto</th>
+                      <th>Colilla</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -244,6 +282,14 @@ function Payroll() {
                         <td>{formatCurrency(d.grossSalary)}</td>
                         <td>{formatCurrency(d.totalDeductions)}</td>
                         <td><strong>{formatCurrency(d.netSalary)}</strong></td>
+                        <td>
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => downloadPayslip(selected.id, d.employeeId, d.employeeName)}
+                          >
+                            Colilla
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -252,6 +298,9 @@ function Payroll() {
 
               <div className="modal-actions">
                 <button className="btn btn-secondary" onClick={() => setShowDetail(false)}>Cerrar</button>
+                <button className="btn btn-primary" onClick={() => downloadPdf(selected.id)}>
+                  Descargar PDF General
+                </button>
                 {selected.status === 'Completada' && !selected.approvedAt && (
                   <button className="btn btn-success" onClick={() => { handleApprove(selected.id); setShowDetail(false); }}>
                     Aprobar Planilla

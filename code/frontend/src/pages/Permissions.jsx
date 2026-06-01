@@ -21,7 +21,6 @@ const Permissions = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
 
   const [formData, setFormData] = useState({
-    permissionTypeId: '',
     startDate: '',
     endDate: '',
     isPartialDay: false,
@@ -78,29 +77,34 @@ const Permissions = () => {
     return count;
   };
 
-  const selectedType = permissionTypes.find(t => t.id === parseInt(formData.permissionTypeId));
   const previewDays = formData.isPartialDay ? 0.5 : calcWorkDays(formData.startDate, formData.endDate);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setError(null);
+
+      const otroType = permissionTypes.find(t => t.name === 'Otro');
+      const defaultTypeId = otroType ? otroType.id : 9;
+
       await permissionAPI.create({
         employeeId: user?.employeeId,
-        permissionTypeId: parseInt(formData.permissionTypeId),
+        permissionTypeId: defaultTypeId,
         startDate: formData.startDate,
-        endDate: formData.isPartialDay ? formData.startDate : (formData.endDate || formData.startDate),
+        endDate: formData.isPartialDay
+          ? formData.startDate
+          : (formData.endDate || formData.startDate),
         isPartialDay: formData.isPartialDay,
         startTime: formData.isPartialDay ? formData.startTime : null,
         endTime: formData.isPartialDay ? formData.endTime : null,
         reason: formData.reason,
         documentUrl: formData.documentUrl || null,
       });
+
       setSuccessMsg('Solicitud enviada exitosamente');
       setShowNewModal(false);
       setSelectedFile(null);
       setFormData({
-        permissionTypeId: '',
         startDate: '',
         endDate: '',
         isPartialDay: false,
@@ -132,7 +136,7 @@ const Permissions = () => {
   const handleReject = async () => {
     try {
       setError(null);
-      await permissionAPI.reject(selectedRequest.id, { comments: approverComments });
+      await permissionAPI.reject(selectedRequest.id, { reason: approverComments });
       setShowRejectModal(false);
       setSelectedRequest(null);
       setApproverComments('');
@@ -177,37 +181,6 @@ const Permissions = () => {
         {error && <div className="alert alert-error">{error}</div>}
         {successMsg && <div className="alert alert-success">{successMsg}</div>}
 
-        {/* Resumen de uso anual */}
-        <div className="usage-summary">
-          <h3>Resumen de Uso Anual</h3>
-          <div className="usage-cards">
-            {usageSummary.length === 0 ? (
-              <div className="no-usage">No hay uso registrado este año</div>
-            ) : (
-              usageSummary.map((item, idx) => (
-                <div key={item.permissionTypeId ?? idx} className="usage-card">
-                  <div className="usage-type">{item.typeName}</div>
-                  <div className="usage-stats">
-                    <span className="used">{item.usedDays} días usados</span>
-                    <span className="limit">/ {item.maxDaysPerYear ?? '∞'} máx</span>
-                  </div>
-                  <div className="usage-bar">
-                    <div
-                      className="usage-progress"
-                      style={{
-                        width: item.maxDaysPerYear
-                          ? `${Math.min((item.usedDays / item.maxDaysPerYear) * 100, 100)}%`
-                          : '0%'
-                      }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Tabs */}
         <div className="tabs">
           <button
             className={`tab ${activeTab === 'my-requests' ? 'active' : ''}`}
@@ -225,18 +198,16 @@ const Permissions = () => {
           )}
         </div>
 
-        {/* Mis solicitudes */}
         {activeTab === 'my-requests' && (
           <div className="table-card">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Tipo</th>
+                  <th>Descripción</th>
                   <th>Fecha Inicio</th>
                   <th>Fecha Fin</th>
                   <th>Días</th>
                   <th>Horario</th>
-                  <th>Motivo</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
@@ -244,12 +215,14 @@ const Permissions = () => {
               <tbody>
                 {requests.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="no-data">No tienes solicitudes de permiso</td>
+                    <td colSpan="7" className="no-data">No tienes solicitudes de permiso</td>
                   </tr>
                 ) : (
                   requests.map((r) => (
                     <tr key={r.id}>
-                      <td>{r.permissionTypeName}</td>
+                      <td title={r.reason}>
+                        {r.reason?.substring(0, 40)}{r.reason?.length > 40 ? '...' : ''}
+                      </td>
                       <td>{formatDate(r.startDate)}</td>
                       <td>{formatDate(r.endDate)}</td>
                       <td>{r.durationDays}</td>
@@ -258,7 +231,6 @@ const Permissions = () => {
                           ? `${r.startTime} - ${r.endTime}`
                           : 'Día completo'}
                       </td>
-                      <td>{r.reason}</td>
                       <td>
                         <span className={`badge ${getStatusBadge(r.requestStatusName)}`}>
                           {r.requestStatusName}
@@ -282,38 +254,38 @@ const Permissions = () => {
           </div>
         )}
 
-        {/* Pendientes de aprobación */}
         {activeTab === 'pending' && isManager && (
           <div className="table-card">
             <table className="table">
               <thead>
                 <tr>
                   <th>Empleado</th>
-                  <th>Tipo</th>
+                  <th>Descripción</th>
                   <th>Fecha Inicio</th>
                   <th>Fecha Fin</th>
                   <th>Días</th>
-                  <th>Motivo</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {pendingRequests.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="no-data">No hay solicitudes pendientes</td>
+                    <td colSpan="6" className="no-data">No hay solicitudes pendientes</td>
                   </tr>
                 ) : (
                   pendingRequests.map((r) => (
                     <tr key={r.id}>
                       <td>{r.employeeName}</td>
-                      <td>{r.permissionTypeName}</td>
+                      <td title={r.reason}>
+                        {r.reason?.substring(0, 40)}{r.reason?.length > 40 ? '...' : ''}
+                      </td>
                       <td>{formatDate(r.startDate)}</td>
                       <td>{formatDate(r.endDate)}</td>
                       <td>{r.durationDays}</td>
-                      <td>{r.reason}</td>
                       <td>
                         <button
                           className="btn btn-sm btn-success"
+                          style={{ marginRight: '6px' }}
                           onClick={() => { setSelectedRequest(r); setShowApproveModal(true); }}
                         >
                           Aprobar
@@ -333,7 +305,6 @@ const Permissions = () => {
           </div>
         )}
 
-        {/* Modal nueva solicitud */}
         {showNewModal && (
           <div className="modal-overlay">
             <div className="modal">
@@ -342,22 +313,19 @@ const Permissions = () => {
                 <button className="close-btn" onClick={() => setShowNewModal(false)}>×</button>
               </div>
               <form onSubmit={handleSubmit}>
+
                 <div className="form-group">
-                  <label>Tipo de Permiso *</label>
-                  <select
-                    value={formData.permissionTypeId}
-                    onChange={(e) => setFormData({ ...formData, permissionTypeId: e.target.value })}
+                  <label>Descripción del permiso *</label>
+                  <input
+                    type="text"
+                    value={formData.reason}
+                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                    placeholder="Ej: Trámite en el banco, reunión escolar, visita al médico..."
                     required
-                  >
-                    <option value="">Seleccionar tipo</option>
-                    {permissionTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                        {t.maxDaysPerYear ? ` (máx ${t.maxDaysPerYear} días/año)` : ''}
-                        {t.isPaid ? ' — Con goce' : ' — Sin goce'}
-                      </option>
-                    ))}
-                  </select>
+                  />
+                  <small style={{ color: '#888', fontSize: '12px' }}>
+                    ⚠ Para incapacidades médicas o lactancia, use el módulo de <strong>Incapacidades</strong>.
+                  </small>
                 </div>
 
                 <div className="form-group checkbox-group">
@@ -432,30 +400,11 @@ const Permissions = () => {
                 {!formData.isPartialDay && formData.startDate && formData.endDate && (
                   <div className="alert alert-info" style={{ marginBottom: '12px' }}>
                     📅 Días hábiles solicitados: <strong>{previewDays}</strong>
-                    {selectedType?.maxDaysPerYear && ` de ${selectedType.maxDaysPerYear} máximos al año`}
                   </div>
                 )}
 
                 <div className="form-group">
-                  <label>Motivo *</label>
-                  <textarea
-                    value={formData.reason}
-                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                    rows="3"
-                    placeholder="Describa el motivo de su solicitud..."
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    Comprobante
-                    {selectedType?.name?.toLowerCase().includes('cita') ||
-                     selectedType?.name?.toLowerCase().includes('dica')
-                      ? <span style={{color:'#e74c3c'}}> * (obligatorio para cita médica)</span>
-                      : <span style={{color:'#888'}}> (opcional)</span>
-                    }
-                  </label>
+                  <label>Comprobante <span style={{ color: '#888' }}>(opcional)</span></label>
                   <input
                     type="file"
                     accept=".pdf,.jpg,.jpeg,.png"
@@ -463,20 +412,13 @@ const Permissions = () => {
                       const file = e.target.files[0];
                       if (file) {
                         setSelectedFile(file);
-                        // Guardar nombre del archivo como referencia
                         setFormData({ ...formData, documentUrl: file.name });
                       }
                     }}
                   />
                   {selectedFile && (
-                    <small style={{color:'#27ae60'}}>
+                    <small style={{ color: '#27ae60' }}>
                       ✓ Archivo seleccionado: {selectedFile.name}
-                    </small>
-                  )}
-                  {(selectedType?.name?.toLowerCase().includes('cita') ||
-                    selectedType?.name?.toLowerCase().includes('dica')) && !selectedFile && (
-                    <small style={{color:'#e74c3c'}}>
-                      ⚠ Debe adjuntar el comprobante de la cita médica.
                     </small>
                   )}
                 </div>
@@ -494,7 +436,6 @@ const Permissions = () => {
           </div>
         )}
 
-        {/* Modal aprobar */}
         {showApproveModal && selectedRequest && (
           <div className="modal-overlay">
             <div className="modal">
@@ -504,10 +445,9 @@ const Permissions = () => {
               </div>
               <div className="info-box">
                 <p><strong>Empleado:</strong> {selectedRequest.employeeName}</p>
-                <p><strong>Tipo:</strong> {selectedRequest.permissionTypeName}</p>
+                <p><strong>Descripción:</strong> {selectedRequest.reason}</p>
                 <p><strong>Fechas:</strong> {formatDate(selectedRequest.startDate)} → {formatDate(selectedRequest.endDate)}</p>
                 <p><strong>Días:</strong> {selectedRequest.durationDays}</p>
-                <p><strong>Motivo:</strong> {selectedRequest.reason}</p>
               </div>
               <div className="form-group">
                 <label>Comentarios (opcional)</label>
@@ -526,7 +466,6 @@ const Permissions = () => {
           </div>
         )}
 
-        {/* Modal rechazar */}
         {showRejectModal && selectedRequest && (
           <div className="modal-overlay">
             <div className="modal">
@@ -536,7 +475,7 @@ const Permissions = () => {
               </div>
               <div className="info-box">
                 <p><strong>Empleado:</strong> {selectedRequest.employeeName}</p>
-                <p><strong>Tipo:</strong> {selectedRequest.permissionTypeName}</p>
+                <p><strong>Descripción:</strong> {selectedRequest.reason}</p>
                 <p><strong>Fechas:</strong> {formatDate(selectedRequest.startDate)} → {formatDate(selectedRequest.endDate)}</p>
               </div>
               <div className="form-group">
