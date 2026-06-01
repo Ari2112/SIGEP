@@ -146,11 +146,12 @@ function Attendance() {
 
 const formatTime = (dateStr) => {
   if (!dateStr) return '-';
-  const d = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
-  return new Date(d).toLocaleTimeString('es-CR', {
-    hour: '2-digit', minute: '2-digit',
-    timeZone: 'America/Costa_Rica'
-  });
+  // El backend devuelve hora local de Costa Rica (sin Z)
+  // No agregar 'Z' para no hacer conversión de zona horaria incorrecta
+  const d = new Date(dateStr);
+  if (isNaN(d)) return '-';
+  // Si el string no trae zona horaria, JS lo trata como local — mostrarlo directamente
+  return d.toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' });
 };
 
 const formatDate = (dateStr) => {

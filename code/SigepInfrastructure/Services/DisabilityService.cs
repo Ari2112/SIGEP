@@ -35,26 +35,18 @@ public class DisabilityService : IDisabilityService
         if (filter != null)
         {
             if (filter.EmployeeId.HasValue)
-            {
                 query = query.Where(dr => dr.EmployeeId == filter.EmployeeId.Value);
-            }
 
             if (!string.IsNullOrEmpty(filter.Status))
-            {
                 query = query.Where(dr =>
                     dr.RequestStatus != null &&
                     dr.RequestStatus.Name == filter.Status);
-            }
 
             if (filter.DateFrom.HasValue)
-            {
                 query = query.Where(dr => dr.StartDate >= filter.DateFrom.Value);
-            }
 
             if (filter.DateTo.HasValue)
-            {
                 query = query.Where(dr => dr.StartDate <= filter.DateTo.Value);
-            }
         }
 
         var requests = await query
@@ -132,8 +124,7 @@ public class DisabilityService : IDisabilityService
 
         var hrUsers = await _context.Users
             .Include(u => u.Role)
-            .Where(u =>
-                u.Role != null &&
+            .Where(u => u.Role != null &&
                 (u.Role.Name == "RRHH" || u.Role.Name == "Admin"))
             .ToListAsync();
 
@@ -165,23 +156,18 @@ public class DisabilityService : IDisabilityService
             .FirstOrDefaultAsync(dr => dr.Id == id)
             ?? throw new ArgumentException("Incapacidad no encontrada");
 
-        var pendingStatus = await _context.RequestStatuses
-            .FirstAsync(rs => rs.Name == "Pendiente");
-
-        var approvedStatus = await _context.RequestStatuses
-            .FirstAsync(rs => rs.Name == "Aprobada");
-
-        var rejectedStatus = await _context.RequestStatuses
-            .FirstAsync(rs => rs.Name == "Rechazada");
+        var pendingStatus  = await _context.RequestStatuses.FirstAsync(rs => rs.Name == "Pendiente");
+        var approvedStatus = await _context.RequestStatuses.FirstAsync(rs => rs.Name == "Aprobada");
+        var rejectedStatus = await _context.RequestStatuses.FirstAsync(rs => rs.Name == "Rechazada");
 
         if (request.RequestStatusId != pendingStatus.Id)
             throw new InvalidOperationException("Solo se pueden revisar incapacidades pendientes");
 
         request.RequestStatusId = approve ? approvedStatus.Id : rejectedStatus.Id;
-        request.ReviewedById = reviewerUserId;
-        request.ReviewedAt = DateTime.UtcNow;
-        request.ReviewComments = comments;
-        request.UpdatedAt = DateTime.UtcNow;
+        request.ReviewedById    = reviewerUserId;
+        request.ReviewedAt      = DateTime.UtcNow;
+        request.ReviewComments  = comments;
+        request.UpdatedAt       = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
@@ -196,7 +182,6 @@ public class DisabilityService : IDisabilityService
         if (request.Employee?.User != null)
         {
             var statusText = approve ? "aprobada" : "rechazada";
-
             await _notificationService.CreateNotificationAsync(
                 request.Employee.User.Id,
                 $"Incapacidad {statusText}",
@@ -210,27 +195,42 @@ public class DisabilityService : IDisabilityService
         return (await GetByIdAsync(id))!;
     }
 
+    public async Task<IEnumerable<DisabilityTypeDto>> GetTypesAsync()
+    {
+        var types = await _context.DisabilityTypes
+            .Where(dt => dt.IsActive)
+            .OrderBy(dt => dt.Id)
+            .ToListAsync();
+
+        return types.Select(t => new DisabilityTypeDto
+        {
+            Id          = t.Id,
+            Name        = t.Name,
+            Description = t.Description
+        });
+    }
+
     private static DisabilityRequestDto MapToDto(DisabilityRequest dr)
     {
         return new DisabilityRequestDto
         {
-            Id = dr.Id,
-            EmployeeId = dr.EmployeeId,
-            EmployeeName = dr.Employee?.FullName ?? string.Empty,
-            StartDate = dr.StartDate,
-            EndDate = dr.EndDate,
-            TotalDays = dr.TotalDays,
-            Type = dr.DisabilityType?.Name ?? string.Empty,
-            Diagnosis = dr.Diagnosis,
-            DoctorName = dr.DoctorName,
-            MedicalCenter = dr.MedicalCenter,
+            Id             = dr.Id,
+            EmployeeId     = dr.EmployeeId,
+            EmployeeName   = dr.Employee?.FullName ?? string.Empty,
+            StartDate      = dr.StartDate,
+            EndDate        = dr.EndDate,
+            TotalDays      = dr.TotalDays,
+            Type           = dr.DisabilityType?.Name ?? string.Empty,
+            Diagnosis      = dr.Diagnosis,
+            DoctorName     = dr.DoctorName,
+            MedicalCenter  = dr.MedicalCenter,
             DocumentNumber = dr.DocumentNumber,
             AttachmentPath = dr.AttachmentPath,
-            Status = dr.RequestStatus?.Name ?? string.Empty,
+            Status         = dr.RequestStatus?.Name ?? string.Empty,
             ReviewedByName = dr.ReviewedBy?.Username,
-            ReviewedAt = dr.ReviewedAt,
+            ReviewedAt     = dr.ReviewedAt,
             ReviewComments = dr.ReviewComments,
-            CreatedAt = dr.CreatedAt
+            CreatedAt      = dr.CreatedAt
         };
     }
 }

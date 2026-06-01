@@ -72,6 +72,7 @@ builder.Services.AddScoped<IAnnualBonusService, AnnualBonusService>();
 builder.Services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
 builder.Services.AddScoped<IDisabilityService, DisabilityService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<SigepInfrastructure.Services.PayrollPdfService>();
 
 // Configure Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
@@ -124,6 +125,8 @@ using (var scope = app.Services.CreateScope())
         {
             var logger = services.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Conexión a base de datos exitosa.");
+            // Inicializar catálogos si están vacíos
+            await SigepInfrastructure.Persistence.DbInitializer.SeedAsync(context);
         }
     }
     catch (Exception ex)

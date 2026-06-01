@@ -9,4 +9,5 @@ public interface IDisabilityService
     Task<DisabilityRequestDto?> GetByIdAsync(int id);
     Task<DisabilityRequestDto> CreateAsync(int employeeId, CreateDisabilityDto dto);
     Task<DisabilityRequestDto> ReviewAsync(int id, int reviewerUserId, bool approve, string? comments = null);
+    Task<IEnumerable<DisabilityTypeDto>> GetTypesAsync();
 }

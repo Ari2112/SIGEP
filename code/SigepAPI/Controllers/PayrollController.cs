@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SigepApplication.DTOs.Payroll;
 using SigepApplication.Interfaces;
+using SigepInfrastructure.Services;
 using System.Security.Claims;
 
 namespace SigepAPI.Controllers;
@@ -12,11 +13,16 @@ namespace SigepAPI.Controllers;
 public class PayrollController : ControllerBase
 {
     private readonly IPayrollService _payrollService;
+    private readonly PayrollPdfService _pdfService;
     private readonly ILogger<PayrollController> _logger;
 
-    public PayrollController(IPayrollService payrollService, ILogger<PayrollController> logger)
+    public PayrollController(
+        IPayrollService payrollService,
+        PayrollPdfService pdfService,
+        ILogger<PayrollController> logger)
     {
         _payrollService = payrollService;
+        _pdfService = pdfService;
         _logger = logger;
     }
 
@@ -38,6 +44,36 @@ public class PayrollController : ControllerBase
         if (payroll == null)
             return NotFound(new { message = "Planilla no encontrada" });
         return Ok(payroll);
+    }
+
+    /// <summary>Genera PDF general de planilla (HU-10.3)</summary>
+    [HttpGet("{id}/pdf")]
+    public async Task<IActionResult> DownloadPayrollPdf(int id)
+    {
+        var payroll = await _payrollService.GetByIdAsync(id);
+        if (payroll == null)
+            return NotFound(new { message = "Planilla no encontrada" });
+
+        var bytes = _pdfService.GeneratePayrollReport(payroll);
+        var filename = $"Planilla_{payroll.PeriodStartDate:yyyy-MM}_{payroll.PeriodType}.pdf";
+        return File(bytes, "application/pdf", filename);
+    }
+
+    /// <summary>Genera PDF de colilla individual por empleado (HU-10.3)</summary>
+    [HttpGet("{id}/pdf/employee/{employeeId}")]
+    public async Task<IActionResult> DownloadEmployeePayslip(int id, int employeeId)
+    {
+        var payroll = await _payrollService.GetByIdAsync(id);
+        if (payroll == null)
+            return NotFound(new { message = "Planilla no encontrada" });
+
+        var employee = payroll.Details.FirstOrDefault(d => d.EmployeeId == employeeId);
+        if (employee == null)
+            return NotFound(new { message = "Empleado no encontrado en esta planilla" });
+
+        var bytes = _pdfService.GeneratePayslip(payroll, employee);
+        var filename = $"Colilla_{employee.EmployeeName?.Replace(" ", "_")}_{payroll.PeriodStartDate:yyyy-MM}.pdf";
+        return File(bytes, "application/pdf", filename);
     }
 
     /// <summary>Genera una planilla quincenal/mensual (HU-5.1)</summary>
