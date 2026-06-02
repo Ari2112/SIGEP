@@ -41,6 +41,61 @@ function useGeo(token) {
   return { getProvinces, getCantons, getDistricts };
 }
 
+// ── Sección dirección con dropdowns ────────────────────────────────
+const AddressSection = ({ formData, onProv, onCant, onDist, onExact,
+    cantonsData, districtsData, loadingC, loadingD, errors, provinces }) => (
+    <>
+      <p style={{ fontWeight:600, color:'#2d5a1b', margin:'16px 0 8px' }}>
+        Dirección
+      </p>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+        <Field label="Provincia" error={errors?.provinceId}>
+          <select value={formData.provinceId}
+            style={{ borderColor: errors?.provinceId ? '#e74c3c' : '' }}
+            onChange={e => onProv(e.target.value)}>
+            <option value="">Seleccione...</option>
+            {provinces.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </Field>
+
+        <Field label="Cantón" error={errors?.cantonId}>
+          <select value={formData.cantonId}
+            disabled={!formData.provinceId || loadingC}
+            style={{ borderColor: errors?.cantonId ? '#e74c3c' : '' }}
+            onChange={e => onCant(e.target.value)}>
+            <option value="">{loadingC ? 'Cargando...' : 'Seleccione...'}</option>
+            {cantonsData.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </Field>
+
+        <Field label="Distrito" error={errors?.districtId}>
+          <select value={formData.districtId}
+            disabled={!formData.cantonId || loadingD}
+            style={{ borderColor: errors?.districtId ? '#e74c3c' : '' }}
+            onChange={e => onDist(e.target.value)}>
+            <option value="">{loadingD ? 'Cargando...' : 'Seleccione...'}</option>
+            {districtsData.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      <Field label="Señas exactas (opcional)">
+        <input type="text" value={formData.exactAddress}
+          placeholder="Casa, barrio, referencias..."
+          onChange={e => onExact(e.target.value)} />
+      </Field>
+    </>
+  );
+
+// Componente Field definido FUERA de Employees para evitar re-renders
+const Field = ({ label, error, required, children }) => (
+  <div className="form-group">
+    <label>{label}{required && ' *'}</label>
+    {children}
+    {error && <small style={{ color:'#e74c3c', fontSize:'0.8rem' }}>{error}</small>}
+  </div>
+);
+
 function Employees() {
   const [employees, setEmployees]   = useState([]);
   const [positions, setPositions]   = useState([]);
@@ -171,9 +226,7 @@ function Employees() {
     if (form.phone && !validarTelefono(form.phone)) errs.phone = 'Formato: 8888-8888';
     if (!form.hireDate)                    errs.hireDate   = 'Requerido';
     if (!form.baseSalary || parseFloat(form.baseSalary) <= 0) errs.baseSalary = 'Mayor a 0';
-    if (!form.provinceId)                  errs.provinceId = 'Seleccione provincia';
-    if (!form.cantonId)                    errs.cantonId   = 'Seleccione cantón';
-    if (!form.districtId)                  errs.districtId = 'Seleccione distrito';
+    // Dirección es opcional — no validar provincia/cantón/distrito
     if (form.username && !form.password)   errs.password   = 'Ingrese contraseña';
     if (form.password && !form.username)   errs.username   = 'Ingrese usuario';
     if (form.password && form.password.length < 6) errs.password = 'Mínimo 6 caracteres';
@@ -312,60 +365,10 @@ function Employees() {
     }
   };
 
-  // ── Campo con error ────────────────────────────────────────────────
-  const Field = ({ label, error, required, children }) => (
-    <div className="form-group">
-      <label>{label}{required && ' *'}</label>
-      {children}
-      {error && <small style={{ color:'#e74c3c', fontSize:'0.8rem' }}>{error}</small>}
-    </div>
-  );
+  // Field definido fuera del componente (ver arriba)
 
-  // ── Sección dirección con dropdowns ────────────────────────────────
-  const AddressSection = ({ formData, onProv, onCant, onDist, onExact,
-    cantonsData, districtsData, loadingC, loadingD, errors }) => (
-    <>
-      <p style={{ fontWeight:600, color:'#2d5a1b', margin:'16px 0 8px' }}>
-        Dirección
-      </p>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-        <Field label="Provincia" error={errors?.provinceId} required>
-          <select value={formData.provinceId}
-            style={{ borderColor: errors?.provinceId ? '#e74c3c' : '' }}
-            onChange={e => onProv(e.target.value)}>
-            <option value="">Seleccione...</option>
-            {provinces.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </Field>
+  // AddressSection definido fuera del componente
 
-        <Field label="Cantón" error={errors?.cantonId} required>
-          <select value={formData.cantonId}
-            disabled={!formData.provinceId || loadingC}
-            style={{ borderColor: errors?.cantonId ? '#e74c3c' : '' }}
-            onChange={e => onCant(e.target.value)}>
-            <option value="">{loadingC ? 'Cargando...' : 'Seleccione...'}</option>
-            {cantonsData.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
-
-        <Field label="Distrito" error={errors?.districtId} required>
-          <select value={formData.districtId}
-            disabled={!formData.cantonId || loadingD}
-            style={{ borderColor: errors?.districtId ? '#e74c3c' : '' }}
-            onChange={e => onDist(e.target.value)}>
-            <option value="">{loadingD ? 'Cargando...' : 'Seleccione...'}</option>
-            {districtsData.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        </Field>
-      </div>
-
-      <Field label="Señas exactas (opcional)">
-        <input type="text" value={formData.exactAddress}
-          placeholder="Casa, barrio, referencias..."
-          onChange={e => onExact(e.target.value)} />
-      </Field>
-    </>
-  );
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
@@ -511,6 +514,7 @@ function Employees() {
                   loadingC={loadingCantons}
                   loadingD={loadingDistricts}
                   errors={fieldErrors}
+                  provinces={provinces}
                 />
 
                 <p style={{ fontWeight:600, color:'#2d5a1b', margin:'16px 0 8px' }}>Datos laborales</p>
@@ -655,6 +659,7 @@ function Employees() {
                   loadingC={false}
                   loadingD={false}
                   errors={{}}
+                  provinces={provinces}
                 />
 
                 <p style={{ fontWeight:600, color:'#2d5a1b', margin:'16px 0 8px' }}>Datos laborales</p>

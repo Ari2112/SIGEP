@@ -20,6 +20,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Position> Positions { get; set; }
     public DbSet<Schedule> Schedules { get; set; }
+    public DbSet<ScheduleDay> ScheduleDays { get; set; }
 
     // Teléfonos de empleados
     public DbSet<EmployeePhone> EmployeePhones { get; set; }
@@ -381,6 +382,9 @@ public class ApplicationDbContext : DbContext
 
             entity.Property(ph => ph.Description)
                 .HasMaxLength(500);
+
+            entity.Property(ph => ph.Date)
+                .HasColumnName("HolidayDate");
 
             entity.HasIndex(ph => ph.Date)
                 .IsUnique();
@@ -833,6 +837,9 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(s => s.ApprovedById)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            entity.Property(s => s.TerminationTypeId)
+                .HasColumnName("TerminationType");
+
             entity.HasOne(s => s.TerminationType)
                 .WithMany(t => t.Settlements)
                 .HasForeignKey(s => s.TerminationTypeId)
@@ -1015,6 +1022,17 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<ScheduleDay>(entity =>
+        {
+            entity.ToTable("ScheduleDays");
+            entity.HasKey(sd => sd.Id);
+            entity.HasOne(sd => sd.Schedule)
+                .WithMany()
+                .HasForeignKey(sd => sd.ScheduleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
 
         // =========================
         // DECIMAL PRECISION GLOBAL

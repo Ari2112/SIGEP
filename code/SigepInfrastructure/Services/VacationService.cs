@@ -257,7 +257,7 @@ public class VacationService : IVacationService
         if (dto.EndDate < dto.StartDate)
             throw new InvalidOperationException("La fecha de fin no puede ser anterior a la fecha de inicio");
 
-        var requestedDays = CalculateBusinessDays(dto.StartDate, dto.EndDate);
+        var requestedDays = await CalculateVacationDaysAsync(dto.StartDate, dto.EndDate);
 
         var year = dto.StartDate.Year;
 
@@ -378,7 +378,7 @@ public class VacationService : IVacationService
             request.Reason
         };
 
-        var newRequestedDays = CalculateBusinessDays(dto.StartDate, dto.EndDate);
+        var newRequestedDays = await CalculateVacationDaysAsync(dto.StartDate, dto.EndDate);
         var daysDifference = newRequestedDays - request.RequestedDays;
 
         if (daysDifference > 0)
@@ -637,16 +637,41 @@ public class VacationService : IVacationService
 
     // === MÉTODOS AUXILIARES ===
 
+    /// <summary>
+    /// Calcula días hábiles excluyendo sábados, domingos Y feriados nacionales.
+    /// Art. 152 Código de Trabajo CR: los feriados no se descuentan de vacaciones.
+    /// </summary>
+    private async Task<int> CalculateVacationDaysAsync(DateTime start, DateTime end)
+    {
+        // Obtener feriados del período (columna HolidayDate)
+        var holidays = await _context.PublicHolidays
+            .Where(h => h.IsActive && h.Date >= start.Date && h.Date <= end.Date)
+            .Select(h => h.Date.Date)
+            .ToListAsync();
+
+        int days = 0;
+        for (var date = start.Date; date <= end.Date; date = date.AddDays(1))
+        {
+            // Excluir fines de semana y feriados
+            if (date.DayOfWeek != DayOfWeek.Saturday &&
+                date.DayOfWeek != DayOfWeek.Sunday &&
+                !holidays.Contains(date))
+            {
+                days++;
+            }
+        }
+        return days;
+    }
+
+    // Versión sincrónica para compatibilidad (sin consulta a BD)
     private static int CalculateBusinessDays(DateTime start, DateTime end)
     {
         int days = 0;
-
         for (var date = start; date <= end; date = date.AddDays(1))
         {
             if (date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday)
                 days++;
         }
-
         return days;
     }
 

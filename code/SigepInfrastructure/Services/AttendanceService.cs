@@ -122,14 +122,17 @@ public class AttendanceService : IAttendanceService
 
         if (employee.Schedule != null)
         {
-            // Hora esperada de entrada según horario
-            var expectedCheckIn = today.Add(employee.Schedule.StartTime);
+            var (schedStart, schedEnd, crossesMidnight, _) =
+                await GetTodayScheduleAsync(employee.Schedule.Id, now.DayOfWeek);
 
-            // Tolerancia de 5 minutos
-            if (now > expectedCheckIn.AddMinutes(5))
+            if (schedStart.HasValue)
             {
-                isLate = true;
-                lateMinutes = (int)(now - expectedCheckIn).TotalMinutes;
+                var expectedCheckIn = today.Add(schedStart.Value);
+                if (now > expectedCheckIn.AddMinutes(5))
+                {
+                    isLate = true;
+                    lateMinutes = (int)(now - expectedCheckIn).TotalMinutes;
+                }
             }
         }
 
@@ -190,7 +193,12 @@ public class AttendanceService : IAttendanceService
         // Verificar si salida es después del horario — exigir motivo
         if (schedule != null)
         {
-            var expectedCheckOut = today.Add(schedule.EndTime);
+            var (_, schedEnd, crossesMidnight, _) =
+                await GetTodayScheduleAsync(schedule.Id, now.DayOfWeek);
+
+            var expectedCheckOut = schedEnd.HasValue
+                ? today.Add(schedEnd.Value)
+                : today.Add(schedule.EndTime);
 
             if (now > expectedCheckOut.AddMinutes(10))
             {
@@ -324,9 +332,49 @@ public class AttendanceService : IAttendanceService
             ScheduleName        = schedule?.Name,
             ScheduledStartTime  = schedule?.StartTime,
             ScheduledEndTime    = schedule?.EndTime,
+            // Nota: el horario real del día se obtiene via GetTodayScheduleAsync
             OvertimeHours       = a.OvertimeRecords.Any()
                 ? a.OvertimeRecords.Sum(o => o.TotalHours)
                 : null
         };
     }
+
+    /// <summary>
+    /// Obtiene el horario del día actual para un empleado.
+    /// Si tiene ScheduleDays configurados, usa el del día de la semana.
+    /// Si no, usa el horario general del Schedule.
+    /// </summary>
+    private async Task<(TimeSpan? start, TimeSpan? end, bool crossesMidnight, decimal workHours)>
+        GetTodayScheduleAsync(int scheduleId, DayOfWeek dayOfWeek)
+    {
+        // Buscar horario específico del día en ScheduleDays
+        var daySchedule = await _context.Set<SigepDomain.Entities.ScheduleDay>()
+            .Where(sd => sd.ScheduleId == scheduleId && sd.DayOfWeek == (int)dayOfWeek && sd.IsActive)
+            .FirstOrDefaultAsync();
+
+        if (daySchedule != null)
+            return (daySchedule.StartTime, daySchedule.EndTime, daySchedule.CrossesMidnight, daySchedule.WorkHours);
+
+        // Fallback: usar horario general
+        var schedule = await _context.Schedules.FindAsync(scheduleId);
+        if (schedule == null) return (null, null, false, 8);
+
+        return (schedule.StartTime, schedule.EndTime, false, schedule.WorkHoursPerDay);
+    }
+
+    /// <summary>
+    /// Verifica si el empleado trabaja hoy según su horario.
+    /// </summary>
+    private async Task<bool> EmployeeWorksToday(int scheduleId, DayOfWeek dayOfWeek)
+    {
+        // Si tiene ScheduleDays, verificar si trabaja ese día
+        var hasDaySchedules = await _context.Set<SigepDomain.Entities.ScheduleDay>()
+            .AnyAsync(sd => sd.ScheduleId == scheduleId && sd.IsActive);
+
+        if (!hasDaySchedules) return true; // Sin ScheduleDays = trabaja todos los días hábiles
+
+        return await _context.Set<SigepDomain.Entities.ScheduleDay>()
+            .AnyAsync(sd => sd.ScheduleId == scheduleId && sd.DayOfWeek == (int)dayOfWeek && sd.IsActive);
+    }
+
 }

@@ -45,12 +45,19 @@ function Settlements() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [settRes, empRes] = await Promise.all([
-        settlementAPI.getAll(),
-        employeeAPI.getAll()
-      ]);
-      setSettlements(settRes.data);
-      setEmployees(empRes.data.filter(e => e.status === 'Activo' || e.status === 1));
+      setError('');
+
+      // Cargar empleados siempre (independiente de liquidaciones)
+      const empRes = await employeeAPI.getAll();
+      setEmployees((empRes.data || []).filter(e => e.status === 'Activo'));
+
+      // Cargar liquidaciones por separado para no bloquear si falla
+      try {
+        const settRes = await settlementAPI.getAll();
+        setSettlements(settRes.data || []);
+      } catch (err) {
+        setError('Error al cargar liquidaciones: ' + (err.response?.data?.message || err.message));
+      }
     } catch (err) {
       setError('Error al cargar datos: ' + (err.response?.data?.message || err.message));
     } finally {

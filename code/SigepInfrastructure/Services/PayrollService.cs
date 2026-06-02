@@ -122,9 +122,25 @@ public class PayrollService : IPayrollService
 
         foreach (var emp in employees)
         {
-            decimal periodSalary = IsMonthlyPeriod(periodType.Name)
+            // Calcular salario base del período (mensual o quincenal)
+            decimal fullPeriodSalary = IsMonthlyPeriod(periodType.Name)
                 ? emp.BaseSalary
                 : emp.BaseSalary / 2;
+
+            // Calcular proporcional si el empleado ingresó durante este período
+            decimal periodSalary;
+            if (emp.HireDate > startDate && emp.HireDate <= endDate)
+            {
+                // Días trabajados en el período
+                int totalPeriodDays = IsMonthlyPeriod(periodType.Name) ? 30 : 15;
+                int daysWorked = (endDate - emp.HireDate.Date).Days + 1;
+                daysWorked = Math.Min(daysWorked, totalPeriodDays);
+                periodSalary = Math.Round(fullPeriodSalary * daysWorked / totalPeriodDays, 2);
+            }
+            else
+            {
+                periodSalary = fullPeriodSalary;
+            }
 
             var overtimeRecords = await _context.OvertimeRecords
                 .Where(o =>
