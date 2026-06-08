@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SigepApplication.Interfaces;
@@ -114,6 +115,13 @@ QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var app = builder.Build();
 
+// Carpeta fisica donde se guardan y se sirven los archivos subidos (documentos de incapacidades).
+// Se ancla a ContentRootPath para que NO dependa de WebRootPath (que puede ser null si no existe
+// wwwroot al iniciar) ni del directorio de trabajo actual. El DisabilityController guarda en esta
+// MISMA ruta, por lo que subida y servido siempre coinciden.
+var uploadsRoot = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+Directory.CreateDirectory(Path.Combine(uploadsRoot, "uploads", "disabilities"));
+
 // Verificar conexión a la base de datos
 using (var scope = app.Services.CreateScope())
 {
@@ -144,6 +152,12 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsRoot)
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

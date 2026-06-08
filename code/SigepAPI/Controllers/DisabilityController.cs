@@ -34,7 +34,7 @@ public class DisabilityController : ControllerBase
 
     /// <summary>Obtiene todas las incapacidades con filtros (Admin/RRHH)</summary>
     [HttpGet]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<IEnumerable<DisabilityRequestDto>>> GetAll([FromQuery] DisabilityFilterDto? filter)
     {
         var requests = await _disabilityService.GetAllAsync(filter);
@@ -55,7 +55,7 @@ public class DisabilityController : ControllerBase
 
     /// <summary>Obtiene incapacidades de un empleado específico (Admin/RRHH)</summary>
     [HttpGet("employee/{employeeId}")]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<IEnumerable<DisabilityRequestDto>>> GetByEmployee(int employeeId)
     {
         var requests = await _disabilityService.GetByEmployeeAsync(employeeId);
@@ -70,9 +70,11 @@ public class DisabilityController : ControllerBase
         if (request == null)
             return NotFound(new { message = "Incapacidad no encontrada" });
 
-        var role = User.FindFirstValue(ClaimTypes.Role);
+        // Un colaborador solo puede ver su propia incapacidad; Admin/RRHH pueden ver todas.
+        // Se usa IsInRole para que funcione con cualquier variante del rol administrador.
+        bool esGestor = User.IsInRole("Admin") || User.IsInRole("Administrador") || User.IsInRole("RRHH");
         var employeeId = GetEmployeeId();
-        if (role != "Admin" && role != "RRHH" && request.EmployeeId != employeeId)
+        if (!esGestor && request.EmployeeId != employeeId)
             return Forbid();
 
         return Ok(request);
@@ -99,7 +101,10 @@ public class DisabilityController : ControllerBase
 
         try
         {
-            var wwwroot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            // Se ancla a ContentRootPath/wwwroot (NO a WebRootPath, que puede ser null).
+            // Es la MISMA carpeta que sirve UseStaticFiles en Program.cs, por lo que el
+            // documento siempre queda accesible por su ruta /uploads/disabilities/...
+            var wwwroot = Path.Combine(_env.ContentRootPath, "wwwroot");
             var uploadDir = Path.Combine(wwwroot, "uploads", "disabilities");
             Directory.CreateDirectory(uploadDir);
 
@@ -159,7 +164,7 @@ public class DisabilityController : ControllerBase
 
     /// <summary>Admin/RRHH puede registrar incapacidad para un empleado específico</summary>
     [HttpPost("employee/{employeeId}")]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<DisabilityRequestDto>> CreateForEmployee(int employeeId, [FromBody] CreateDisabilityDto dto)
     {
         try
@@ -175,7 +180,7 @@ public class DisabilityController : ControllerBase
 
     /// <summary>Aprueba o rechaza una incapacidad (Admin/RRHH)</summary>
     [HttpPost("{id}/review")]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<DisabilityRequestDto>> Review(int id, [FromBody] ReviewDisabilityDto dto)
     {
         try

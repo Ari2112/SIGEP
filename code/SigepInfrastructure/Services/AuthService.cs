@@ -80,14 +80,19 @@ public class AuthService : IAuthService
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new List<Claim>
-{
-    new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
-    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-    new Claim(JwtRegisteredClaimNames.UniqueName, username),
-    new Claim(ClaimTypes.Name, username),
-    new Claim(ClaimTypes.Role, role),
-    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-};
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(JwtRegisteredClaimNames.UniqueName, username),
+            new Claim(ClaimTypes.Name, username),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        // Claims de rol. Para el administrador se emiten AMBAS variantes
+        // ("Admin" y "Administrador") de modo que cualquier [Authorize(Roles = ...)]
+        // funcione sin importar la grafia usada en cada controlador.
+        foreach (var roleClaim in BuildRoleClaims(role))
+            claims.Add(roleClaim);
 
         if (employeeId.HasValue)
             claims.Add(new Claim("EmployeeId", employeeId.Value.ToString()));
@@ -101,5 +106,28 @@ public class AuthService : IAuthService
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    /// <summary>
+    /// Construye los claims de rol para el usuario. El rol del administrador
+    /// aparece en la base de datos como "Administrador", pero algunos controladores
+    /// historicamente usaron "Admin". Para garantizar consistencia y no romper
+    /// ninguna autorizacion existente, el administrador recibe ambas variantes.
+    /// </summary>
+    private static IEnumerable<Claim> BuildRoleClaims(string role)
+    {
+        var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { role };
+
+        bool esAdministrador =
+            role.Equals("Administrador", StringComparison.OrdinalIgnoreCase) ||
+            role.Equals("Admin", StringComparison.OrdinalIgnoreCase);
+
+        if (esAdministrador)
+        {
+            roles.Add("Administrador");
+            roles.Add("Admin");
+        }
+
+        return roles.Select(r => new Claim(ClaimTypes.Role, r));
     }
 }
