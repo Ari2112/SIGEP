@@ -28,6 +28,18 @@ public class VacationsController : ControllerBase
         return claim != null ? int.Parse(claim) : null;
     }
 
+    /// <summary>
+    /// Verdadero si el usuario tiene un rol con permisos de gestión.
+    /// Usa IsInRole para revisar TODOS los claims de rol (el administrador
+    /// recibe tanto "Administrador" como "Admin"), no solo el primero.
+    /// </summary>
+    private bool IsManager() =>
+        User.IsInRole("Admin") ||
+        User.IsInRole("Administrador") ||
+        User.IsInRole("RRHH") ||
+        User.IsInRole("Recursos Humanos") ||
+        User.IsInRole("Jefatura");
+
     // === SALDO DE VACACIONES ===
 
     /// <summary>
@@ -38,11 +50,29 @@ public class VacationsController : ControllerBase
     {
         try
         {
-            var employeeId = GetEmployeeId();
-            if (!employeeId.HasValue)
-                return BadRequest(new { message = "Usuario no tiene empleado asociado" });
-
             var targetYear = year ?? DateTime.Now.Year;
+            var employeeId = GetEmployeeId();
+
+            // El administrador (u otros usuarios sin empleado asociado) NO debe
+            // provocar un error: se devuelve un saldo vacío para que la pantalla
+            // de vacaciones cargue igual que la del empleado.
+            if (!employeeId.HasValue)
+            {
+                return Ok(new VacationBalanceDto
+                {
+                    Id = 0,
+                    EmployeeId = 0,
+                    EmployeeName = null,
+                    Year = targetYear,
+                    TotalDays = 0,
+                    UsedDays = 0,
+                    PendingDays = 0,
+                    AvailableDays = 0,
+                    CarriedOverDays = 0,
+                    ExpirationDate = null
+                });
+            }
+
             var balance = await _vacationService.GetBalanceAsync(employeeId.Value, targetYear);
 
             if (balance == null)
@@ -61,7 +91,7 @@ public class VacationsController : ControllerBase
     /// Obtiene el saldo de vacaciones de un empleado específico (Admin/RRHH)
     /// </summary>
     [HttpGet("balance/{employeeId}")]
-    [Authorize(Roles = "Admin,RRHH,Jefatura")]
+    [Authorize(Roles = "Admin,Administrador,RRHH,Recursos Humanos,Jefatura")]
     public async Task<ActionResult<VacationBalanceDto>> GetEmployeeBalance(int employeeId, [FromQuery] int? year)
     {
         try
@@ -105,7 +135,7 @@ public class VacationsController : ControllerBase
     {
         var employeeId = GetEmployeeId();
         if (!employeeId.HasValue)
-            return BadRequest(new { message = "Usuario no tiene empleado asociado" });
+            return Ok(Array.Empty<VacationRequestDto>());
 
         var requests = await _vacationService.GetEmployeeRequestsAsync(employeeId.Value);
         return Ok(requests);
@@ -122,11 +152,9 @@ public class VacationsController : ControllerBase
         if (request == null)
             return NotFound(new { message = "Solicitud no encontrada" });
 
-        // Verificar permisos
+        // Verificar permisos (IsManager revisa todos los claims de rol)
         var employeeId = GetEmployeeId();
-        var role = User.FindFirstValue(ClaimTypes.Role);
-        
-        if (role != "Admin" && role != "RRHH" && role != "Jefatura" && request.EmployeeId != employeeId)
+        if (!IsManager() && request.EmployeeId != employeeId)
             return Forbid();
 
         return Ok(request);
@@ -136,7 +164,7 @@ public class VacationsController : ControllerBase
     /// Obtiene todas las solicitudes pendientes (Admin/RRHH/Jefatura)
     /// </summary>
     [HttpGet("requests/pending")]
-    [Authorize(Roles = "Admin,RRHH,Jefatura")]
+    [Authorize(Roles = "Admin,Administrador,RRHH,Recursos Humanos,Jefatura")]
     public async Task<ActionResult<IEnumerable<VacationRequestDto>>> GetPendingRequests()
     {
         var requests = await _vacationService.GetPendingRequestsAsync();
@@ -147,7 +175,7 @@ public class VacationsController : ControllerBase
     /// Obtiene todas las solicitudes con filtros opcionales (Admin/RRHH)
     /// </summary>
     [HttpGet("requests")]
-    [Authorize(Roles = "Admin,RRHH,Jefatura")]
+    [Authorize(Roles = "Admin,Administrador,RRHH,Recursos Humanos,Jefatura")]
     public async Task<ActionResult<IEnumerable<VacationRequestDto>>> GetAllRequests([FromQuery] VacationRequestFilterDto? filter)
     {
         var requests = await _vacationService.GetAllRequestsAsync(filter);
@@ -174,8 +202,7 @@ public class VacationsController : ControllerBase
             else
             {
                 // Verificar permisos si es para otro empleado
-                var role = User.FindFirstValue(ClaimTypes.Role);
-                if (dto.EmployeeId != employeeId && role != "Admin" && role != "RRHH")
+                if (dto.EmployeeId != employeeId && !IsManager())
                     return Forbid();
             }
 
@@ -211,9 +238,7 @@ public class VacationsController : ControllerBase
 
             // Verificar permisos
             var employeeId = GetEmployeeId();
-            var role = User.FindFirstValue(ClaimTypes.Role);
-            
-            if (existingRequest.EmployeeId != employeeId && role != "Admin" && role != "RRHH")
+            if (existingRequest.EmployeeId != employeeId && !IsManager())
                 return Forbid();
 
             var request = await _vacationService.UpdateRequestAsync(id, dto, GetUserId());
@@ -233,7 +258,7 @@ public class VacationsController : ControllerBase
     /// Aprueba una solicitud de vacaciones (Admin/RRHH/Jefatura)
     /// </summary>
     [HttpPost("requests/{id}/approve")]
-    [Authorize(Roles = "Admin,RRHH,Jefatura")]
+    [Authorize(Roles = "Admin,Administrador,RRHH,Recursos Humanos,Jefatura")]
     public async Task<ActionResult<VacationRequestDto>> ApproveRequest(int id, [FromBody] ApprovalDto? dto)
     {
         try
@@ -249,13 +274,18 @@ public class VacationsController : ControllerBase
         {
             return Conflict(new { message = ex.Message });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error aprobando solicitud de vacaciones {RequestId}", id);
+            return StatusCode(500, new { message = "No se pudo aprobar la solicitud: " + ex.Message });
+        }
     }
 
     /// <summary>
     /// Rechaza una solicitud de vacaciones (Admin/RRHH/Jefatura)
     /// </summary>
     [HttpPost("requests/{id}/reject")]
-    [Authorize(Roles = "Admin,RRHH,Jefatura")]
+    [Authorize(Roles = "Admin,Administrador,RRHH,Recursos Humanos,Jefatura")]
     public async Task<ActionResult<VacationRequestDto>> RejectRequest(int id, [FromBody] RejectionDto dto)
     {
         try
@@ -290,9 +320,7 @@ public class VacationsController : ControllerBase
 
             // Verificar permisos
             var employeeId = GetEmployeeId();
-            var role = User.FindFirstValue(ClaimTypes.Role);
-            
-            if (existingRequest.EmployeeId != employeeId && role != "Admin" && role != "RRHH")
+            if (existingRequest.EmployeeId != employeeId && !IsManager())
                 return Forbid();
 
             var request = await _vacationService.CancelRequestAsync(id, GetUserId(), dto?.Reason);
@@ -320,9 +348,7 @@ public class VacationsController : ControllerBase
 
         // Verificar permisos
         var employeeId = GetEmployeeId();
-        var role = User.FindFirstValue(ClaimTypes.Role);
-        
-        if (existingRequest.EmployeeId != employeeId && role != "Admin" && role != "RRHH" && role != "Jefatura")
+        if (existingRequest.EmployeeId != employeeId && !IsManager())
             return Forbid();
 
         var history = await _vacationService.GetRequestHistoryAsync(id);

@@ -69,7 +69,7 @@ function Attendance() {
       setTodayRecord(res.data);
       // Mostrar aviso de tardía si aplica
       if (res.data.isLate) {
-        setSuccessMessage(`Entrada registrada — TARDÍA: ${res.data.lateMinutes} minutos después del horario`);
+        setSuccessMessage(`Entrada registrada — TARDÍA: ${formatLate(res.data.lateMinutes)} después del horario`);
       } else {
         setSuccessMessage('Entrada registrada exitosamente');
       }
@@ -163,6 +163,16 @@ const formatDate = (dateStr) => {
   });
 };
 
+// Convierte minutos de tardía a un texto legible en horas y minutos.
+// Ej: 141 -> "2 h 21 min", 45 -> "45 min", 120 -> "2 h"
+const formatLate = (totalMinutes) => {
+  const m = Math.max(0, Math.round(Number(totalMinutes) || 0));
+  if (m < 60) return `${m} min`;
+  const hours = Math.floor(m / 60);
+  const minutes = m % 60;
+  return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
+};
+
   const getStatusBadge = (status) => {
     const map = {
       'Completo': 'badge-success',
@@ -248,7 +258,7 @@ const formatDate = (dateStr) => {
                   {/* Alerta de tardía */}
                   {todayRecord.isLate && (
                     <div className="alert alert-warning" style={{marginTop:'10px'}}>
-                      ⚠ Tardía detectada: {todayRecord.lateMinutes} minutos después del horario
+                      ⚠ Tardía detectada: {formatLate(todayRecord.lateMinutes)} después del horario
                     </div>
                   )}
 
@@ -311,7 +321,7 @@ const formatDate = (dateStr) => {
                       <td>{rec.workedHours ? `${parseFloat(rec.workedHours).toFixed(2)}h` : '-'}</td>
                       <td>
                         {rec.isLate
-                          ? <span style={{color:'#e74c3c'}}>⚠ {rec.lateMinutes} min</span>
+                          ? <span style={{color:'#e74c3c'}}>⚠ {formatLate(rec.lateMinutes)}</span>
                           : <span style={{color:'#27ae60'}}>✓</span>}
                       </td>
                       <td>{rec.overtimeHours > 0 ? `${parseFloat(rec.overtimeHours).toFixed(2)}h` : '-'}</td>
@@ -365,7 +375,7 @@ const formatDate = (dateStr) => {
                       <td>{rec.workedHours ? `${parseFloat(rec.workedHours).toFixed(2)}h` : '-'}</td>
                       <td>
                         {rec.isLate
-                          ? <span style={{color:'#e74c3c'}}>⚠ {rec.lateMinutes} min</span>
+                          ? <span style={{color:'#e74c3c'}}>⚠ {formatLate(rec.lateMinutes)}</span>
                           : <span style={{color:'#27ae60'}}>✓</span>}
                       </td>
                       <td>{rec.overtimeHours > 0 ? `${parseFloat(rec.overtimeHours).toFixed(2)}h` : '-'}</td>

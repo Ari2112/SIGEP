@@ -50,30 +50,46 @@ public class PayrollController : ControllerBase
     [HttpGet("{id}/pdf")]
     public async Task<IActionResult> DownloadPayrollPdf(int id)
     {
-        var payroll = await _payrollService.GetByIdAsync(id);
-        if (payroll == null)
-            return NotFound(new { message = "Planilla no encontrada" });
+        try
+        {
+            var payroll = await _payrollService.GetByIdAsync(id);
+            if (payroll == null)
+                return NotFound(new { message = "Planilla no encontrada" });
 
-        var bytes = _pdfService.GeneratePayrollReport(payroll);
-        var filename = $"Planilla_{payroll.PeriodStartDate:yyyy-MM}_{payroll.PeriodType}.pdf";
-        return File(bytes, "application/pdf", filename);
+            var bytes = _pdfService.GeneratePayrollReport(payroll);
+            var filename = $"Planilla_{payroll.PeriodStartDate:yyyy-MM}_{payroll.PeriodType}.pdf";
+            return File(bytes, "application/pdf", filename);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generando PDF de planilla {PayrollId}", id);
+            return StatusCode(500, new { message = "No se pudo generar el PDF de la planilla: " + ex.Message });
+        }
     }
 
     /// <summary>Genera PDF de colilla individual por empleado (HU-10.3)</summary>
     [HttpGet("{id}/pdf/employee/{employeeId}")]
     public async Task<IActionResult> DownloadEmployeePayslip(int id, int employeeId)
     {
-        var payroll = await _payrollService.GetByIdAsync(id);
-        if (payroll == null)
-            return NotFound(new { message = "Planilla no encontrada" });
+        try
+        {
+            var payroll = await _payrollService.GetByIdAsync(id);
+            if (payroll == null)
+                return NotFound(new { message = "Planilla no encontrada" });
 
-        var employee = payroll.Details.FirstOrDefault(d => d.EmployeeId == employeeId);
-        if (employee == null)
-            return NotFound(new { message = "Empleado no encontrado en esta planilla" });
+            var employee = payroll.Details.FirstOrDefault(d => d.EmployeeId == employeeId);
+            if (employee == null)
+                return NotFound(new { message = "El empleado seleccionado no forma parte de esta planilla" });
 
-        var bytes = _pdfService.GeneratePayslip(payroll, employee);
-        var filename = $"Colilla_{employee.EmployeeName?.Replace(" ", "_")}_{payroll.PeriodStartDate:yyyy-MM}.pdf";
-        return File(bytes, "application/pdf", filename);
+            var bytes = _pdfService.GeneratePayslip(payroll, employee);
+            var filename = $"Colilla_{employee.EmployeeName?.Replace(" ", "_")}_{payroll.PeriodStartDate:yyyy-MM}.pdf";
+            return File(bytes, "application/pdf", filename);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generando colilla individual (planilla {PayrollId}, empleado {EmployeeId})", id, employeeId);
+            return StatusCode(500, new { message = "No se pudo generar la colilla individual: " + ex.Message });
+        }
     }
 
     /// <summary>Genera una planilla quincenal/mensual (HU-5.1)</summary>

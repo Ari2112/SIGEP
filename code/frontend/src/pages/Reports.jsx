@@ -82,21 +82,32 @@ function Reports() {
   };
 
   // Descarga PDF con token JWT
-  const downloadWithToken = (url, filename) => {
-    const token = localStorage.getItem('token');
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => {
-        if (!res.ok) throw new Error('Error al generar PDF');
-        return res.blob();
-      })
-      .then(blob => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      })
-      .catch(() => setError('Error al descargar el PDF'));
+  const downloadWithToken = async (url, filename) => {
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+
+      if (!res.ok) {
+        // El backend devuelve JSON con el detalle del error
+        let msg = `Error ${res.status} al generar el PDF`;
+        try {
+          const data = await res.json();
+          if (data?.message) msg = data.message;
+        } catch (_) { /* respuesta no-JSON */ }
+        setError(msg);
+        return;
+      }
+
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (err) {
+      setError('No se pudo descargar el PDF: ' + (err?.message || 'error de conexión'));
+    }
   };
 
   const downloadPayrollPdf = () => {
@@ -111,9 +122,9 @@ function Reports() {
   const downloadPayslipPdf = () => {
     if (!selectedPayroll) { setError('Seleccione una planilla'); return; }
     if (!selectedEmployee) { setError('Seleccione un empleado para la colilla individual'); return; }
-    const emp = employees.find(e => e.id === parseInt(selectedEmployee));
+    const emp = (payrollReport?.employees || []).find(e => e.employeeId === parseInt(selectedEmployee));
     const nombre = emp
-      ? `Colilla_${emp.fullName?.replace(/ /g, '_')}.pdf`
+      ? `Colilla_${emp.employeeName?.replace(/ /g, '_')}.pdf`
       : `Colilla_${selectedEmployee}.pdf`;
     downloadWithToken(
       `${API_URL}/payroll/${selectedPayroll}/pdf/employee/${selectedEmployee}`,
@@ -234,12 +245,12 @@ function Reports() {
                 <tr>
                   <th>Empleado</th>
                   <th>Puesto</th>
-                  <th>Total Registros</th>
-                  <th>Total Horas</th>
-                  <th>Total Monto</th>
-                  <th>Aprobados</th>
-                  <th>Horas Aprobadas</th>
-                  <th>Monto Aprobado</th>
+                  <th className="num">Total Registros</th>
+                  <th className="num">Total Horas</th>
+                  <th className="num">Total Monto</th>
+                  <th className="num">Aprobados</th>
+                  <th className="num">Horas Aprobadas</th>
+                  <th className="num">Monto Aprobado</th>
                 </tr>
               </thead>
               <tbody>
@@ -252,12 +263,12 @@ function Reports() {
                     <tr key={r.employeeId}>
                       <td><strong>{r.employeeName}</strong></td>
                       <td>{r.positionName || '-'}</td>
-                      <td>{r.totalRecords}</td>
-                      <td>{r.totalHours}h</td>
-                      <td>{formatCurrency(r.totalAmount)}</td>
-                      <td><span className="badge badge-success">{r.approvedRecords}</span></td>
-                      <td>{r.approvedHours}h</td>
-                      <td><strong>{formatCurrency(r.approvedAmount)}</strong></td>
+                      <td className="num">{r.totalRecords}</td>
+                      <td className="num">{r.totalHours}h</td>
+                      <td className="num">{formatCurrency(r.totalAmount)}</td>
+                      <td className="num"><span className="badge badge-success">{r.approvedRecords}</span></td>
+                      <td className="num">{r.approvedHours}h</td>
+                      <td className="num"><strong>{formatCurrency(r.approvedAmount)}</strong></td>
                     </tr>
                   ))
                 )}
@@ -290,19 +301,19 @@ function Reports() {
                 disabled={!selectedPayroll}
                 title="Descarga PDF con todos los empleados"
               >
-                📄 PDF General
+                PDF General
               </button>
             </div>
 
-            {/* Selector de empleado para colilla individual */}
-            {selectedPayroll && (
+            {/* Selector de empleado para colilla individual (solo empleados de la planilla) */}
+            {selectedPayroll && payrollReport && (
               <div className="filters-bar" style={{ marginTop: '8px', flexWrap: 'wrap', gap: '10px' }}>
                 <label style={{ fontWeight: '500' }}>Colilla individual:</label>
                 <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}>
                   <option value="">Seleccionar empleado...</option>
-                  {(payrollReport?.employees || employees).map(e => (
-                    <option key={e.employeeId || e.id} value={e.employeeId || e.id}>
-                      {e.employeeName || e.fullName}
+                  {(payrollReport.employees || []).map(e => (
+                    <option key={e.employeeId} value={e.employeeId}>
+                      {e.employeeName}
                     </option>
                   ))}
                 </select>
@@ -312,9 +323,15 @@ function Reports() {
                   disabled={!selectedEmployee}
                   title="Descarga colilla individual del empleado seleccionado"
                 >
-                  📄 Descargar Colilla
+                  Descargar Colilla
                 </button>
               </div>
+            )}
+
+            {selectedPayroll && !payrollReport && (
+              <p className="hint-text" style={{ marginTop: '8px', color: '#888' }}>
+                Pulse "Ver Reporte" para cargar la planilla y poder descargar colillas individuales.
+              </p>
             )}
 
             {payrollReport && (
@@ -344,13 +361,13 @@ function Reports() {
                       <tr>
                         <th>Empleado</th>
                         <th>Puesto</th>
-                        <th>Salario Base</th>
-                        <th>Horas Extra</th>
-                        <th>Bruto</th>
-                        <th>CCSS Obrero</th>
-                        <th>Imp. Renta</th>
-                        <th>Total Ded.</th>
-                        <th>Neto</th>
+                        <th className="num">Salario Base</th>
+                        <th className="num">Horas Extra</th>
+                        <th className="num">Bruto</th>
+                        <th className="num">CCSS Obrero</th>
+                        <th className="num">Imp. Renta</th>
+                        <th className="num">Total Ded.</th>
+                        <th className="num">Neto</th>
                         <th>Colilla</th>
                       </tr>
                     </thead>
@@ -366,13 +383,13 @@ function Reports() {
                           <tr key={i}>
                             <td><strong>{e.employeeName}</strong></td>
                             <td>{e.positionName || '-'}</td>
-                            <td>{formatCurrency(e.baseSalary)}</td>
-                            <td>{e.overtimeAmount > 0 ? formatCurrency(e.overtimeAmount) : '-'}</td>
-                            <td>{formatCurrency(e.grossSalary)}</td>
-                            <td style={{color:'#c0392b'}}>{ccss > 0 ? formatCurrency(ccss) : '-'}</td>
-                            <td style={{color:'#c0392b'}}>{renta > 0 ? formatCurrency(renta) : '-'}</td>
-                            <td style={{color:'#c0392b'}}>{formatCurrency(e.totalDeductions)}</td>
-                            <td><strong style={{color:'#1a6b1a'}}>{formatCurrency(e.netSalary)}</strong></td>
+                            <td className="num">{formatCurrency(e.baseSalary)}</td>
+                            <td className="num">{e.overtimeAmount > 0 ? formatCurrency(e.overtimeAmount) : '-'}</td>
+                            <td className="num">{formatCurrency(e.grossSalary)}</td>
+                            <td className="num" style={{color:'#c0392b'}}>{ccss > 0 ? formatCurrency(ccss) : '-'}</td>
+                            <td className="num" style={{color:'#c0392b'}}>{renta > 0 ? formatCurrency(renta) : '-'}</td>
+                            <td className="num" style={{color:'#c0392b'}}>{formatCurrency(e.totalDeductions)}</td>
+                            <td className="num"><strong style={{color:'#1a6b1a'}}>{formatCurrency(e.netSalary)}</strong></td>
                             <td>
                               <button
                                 className="btn btn-sm btn-secondary"

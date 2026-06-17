@@ -141,10 +141,10 @@ function Payroll() {
               <tr>
                 <th>Período</th>
                 <th>Tipo</th>
-                <th>Empleados</th>
-                <th>Salario Bruto</th>
-                <th>Deducciones</th>
-                <th>Salario Neto</th>
+                <th className="num">Empleados</th>
+                <th className="num">Salario Bruto</th>
+                <th className="num">Deducciones</th>
+                <th className="num">Salario Neto</th>
                 <th>Estado</th>
                 <th>Generado</th>
                 <th>Acciones</th>
@@ -159,9 +159,9 @@ function Payroll() {
                     <td><strong>{MONTHS[p.periodMonth - 1]} {p.periodYear}</strong></td>
                     <td><span className="badge badge-info">{PERIOD_TYPES[p.periodType] || p.periodType}</span></td>
                     <td>{p.totalEmployees}</td>
-                    <td>{formatCurrency(p.totalGrossSalary)}</td>
-                    <td>{formatCurrency(p.totalDeductions)}</td>
-                    <td><strong>{formatCurrency(p.totalNetSalary)}</strong></td>
+                    <td className="num">{formatCurrency(p.totalGrossSalary)}</td>
+                    <td className="num">{formatCurrency(p.totalDeductions)}</td>
+                    <td className="num"><strong>{formatCurrency(p.totalNetSalary)}</strong></td>
                     <td><span className={`badge ${STATUS_COLORS[p.status] || 'badge-secondary'}`}>{p.status}</span></td>
                     <td>{formatDate(p.createdAt)}</td>
                     <td style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -264,11 +264,11 @@ function Payroll() {
                     <tr>
                       <th>Empleado</th>
                       <th>Puesto</th>
-                      <th>Salario Base</th>
-                      <th>H.Extra</th>
-                      <th>Bruto</th>
-                      <th>Deducciones</th>
-                      <th>Neto</th>
+                      <th className="num">Salario Base</th>
+                      <th className="num">H.Extra</th>
+                      <th className="num">Bruto</th>
+                      <th className="num">Deducciones</th>
+                      <th className="num">Neto</th>
                       <th>Colilla</th>
                     </tr>
                   </thead>
@@ -277,11 +277,11 @@ function Payroll() {
                       <tr key={d.id}>
                         <td>{d.employeeName}</td>
                         <td>{d.positionName || '-'}</td>
-                        <td>{formatCurrency(d.baseSalary)}</td>
-                        <td>{d.overtimeHours > 0 ? `${d.overtimeHours}h (${formatCurrency(d.overtimeAmount)})` : '-'}</td>
-                        <td>{formatCurrency(d.grossSalary)}</td>
-                        <td>{formatCurrency(d.totalDeductions)}</td>
-                        <td><strong>{formatCurrency(d.netSalary)}</strong></td>
+                        <td className="num">{formatCurrency(d.baseSalary)}</td>
+                        <td className="num">{d.overtimeHours > 0 ? `${d.overtimeHours}h (${formatCurrency(d.overtimeAmount)})` : '-'}</td>
+                        <td className="num">{formatCurrency(d.grossSalary)}</td>
+                        <td className="num">{formatCurrency(d.totalDeductions)}</td>
+                        <td className="num"><strong>{formatCurrency(d.netSalary)}</strong></td>
                         <td>
                           <button
                             className="btn btn-sm btn-secondary"

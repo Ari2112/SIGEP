@@ -47,6 +47,7 @@ public class PayrollSummaryReportDto
 
 public class PayrollDetailSummaryDto
 {
+    public int EmployeeId { get; set; }
     public string EmployeeName { get; set; } = string.Empty;
     public string? PositionName { get; set; }
     public decimal BaseSalary { get; set; }

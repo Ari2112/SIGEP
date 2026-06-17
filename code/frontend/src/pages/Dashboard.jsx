@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { reportAPI, attendanceAPI } from '../api/api';
 import Layout from '../components/Layout';
+import { Icon } from '../components/Icons';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -11,7 +12,7 @@ const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [todayAttendance, setTodayAttendance] = useState(null);
 
-  const isManager = user?.role === 'Admin' || user?.role === 'RRHH';
+  const isManager = ['Admin','Administrador','RRHH','Recursos Humanos'].includes(user?.role);
 
   useEffect(() => { loadData(); }, []);
 
@@ -31,18 +32,18 @@ const Dashboard = () => {
   const formatCurrency = (v) => new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 0 }).format(v || 0);
 
   const quickLinks = [
-    { icon: '✓', label: 'Asistencia', path: '/attendance', color: 'primary', desc: 'Marcar entrada/salida' },
-    { icon: '✈', label: 'Vacaciones', path: '/vacations', color: 'success', desc: 'Solicitar días libres' },
-    { icon: '📋', label: 'Permisos', path: '/permissions', color: 'info', desc: 'Pedir permiso especial' },
-    { icon: '🏥', label: 'Incapacidades', path: '/disabilities', color: 'warning', desc: 'Registrar incapacidad' },
-    { icon: '⭐', label: 'Desempeño', path: '/performance', color: 'secondary', desc: 'Ver mis evaluaciones' },
+    { icon: 'attendance', label: 'Asistencia', path: '/attendance', color: 'primary', desc: 'Marcar entrada/salida' },
+    { icon: 'vacations', label: 'Vacaciones', path: '/vacations', color: 'success', desc: 'Solicitar días libres' },
+    { icon: 'permissions', label: 'Permisos', path: '/permissions', color: 'info', desc: 'Pedir permiso especial' },
+    { icon: 'disabilities', label: 'Incapacidades', path: '/disabilities', color: 'warning', desc: 'Registrar incapacidad' },
+    { icon: 'performance', label: 'Desempeño', path: '/performance', color: 'secondary', desc: 'Ver mis evaluaciones' },
     ...(isManager ? [
-      { icon: '⏱', label: 'Horas Extra', path: '/overtime', color: 'warning', desc: 'Aprobar horas extra' },
-      { icon: '💳', label: 'Planilla', path: '/payroll', color: 'success', desc: 'Gestionar planillas' },
-      { icon: '🎁', label: 'Aguinaldo', path: '/annual-bonus', color: 'primary', desc: 'Calcular aguinaldo' },
-      { icon: '📄', label: 'Liquidaciones', path: '/settlements', color: 'danger', desc: 'Procesar liquidaciones' },
-      { icon: '📊', label: 'Reportes', path: '/reports', color: 'info', desc: 'Generar informes' },
-      { icon: '👥', label: 'Empleados', path: '/employees', color: 'secondary', desc: 'Gestionar personal' },
+      { icon: 'overtime', label: 'Horas Extra', path: '/overtime', color: 'warning', desc: 'Aprobar horas extra' },
+      { icon: 'payroll', label: 'Planilla', path: '/payroll', color: 'success', desc: 'Gestionar planillas' },
+      { icon: 'bonus', label: 'Aguinaldo', path: '/annual-bonus', color: 'primary', desc: 'Calcular aguinaldo' },
+      { icon: 'settlements', label: 'Liquidaciones', path: '/settlements', color: 'danger', desc: 'Procesar liquidaciones' },
+      { icon: 'reports', label: 'Reportes', path: '/reports', color: 'info', desc: 'Generar informes' },
+      { icon: 'employees', label: 'Empleados', path: '/employees', color: 'secondary', desc: 'Gestionar personal' },
     ] : [])
   ];
 
@@ -82,35 +83,35 @@ const Dashboard = () => {
         {isManager && stats && (
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-icon employees">👥</div>
+              <div className="stat-icon employees"><Icon.employees /></div>
               <div className="stat-info">
                 <span className="stat-value">{stats.activeEmployees}</span>
                 <span className="stat-label">Empleados activos</span>
               </div>
             </div>
             <div className="stat-card" onClick={() => navigate('/vacations')} style={{ cursor: 'pointer' }}>
-              <div className="stat-icon vacations">✈</div>
+              <div className="stat-icon vacations"><Icon.vacations /></div>
               <div className="stat-info">
                 <span className="stat-value">{stats.pendingVacations}</span>
                 <span className="stat-label">Vacaciones pendientes</span>
               </div>
             </div>
             <div className="stat-card" onClick={() => navigate('/overtime')} style={{ cursor: 'pointer' }}>
-              <div className="stat-icon overtime">⏱</div>
+              <div className="stat-icon overtime"><Icon.overtime /></div>
               <div className="stat-info">
                 <span className="stat-value">{stats.pendingOvertimes}</span>
                 <span className="stat-label">H. Extra por revisar</span>
               </div>
             </div>
             <div className="stat-card" onClick={() => navigate('/disabilities')} style={{ cursor: 'pointer' }}>
-              <div className="stat-icon disabilities">🏥</div>
+              <div className="stat-icon disabilities"><Icon.disabilities /></div>
               <div className="stat-info">
                 <span className="stat-value">{stats.pendingDisabilities}</span>
                 <span className="stat-label">Incapacidades pendientes</span>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon attendance">✓</div>
+              <div className="stat-icon attendance"><Icon.attendance /></div>
               <div className="stat-info">
                 <span className="stat-value">{stats.checkedInToday}/{stats.activeEmployees}</span>
                 <span className="stat-label">Asistencia hoy</span>
@@ -118,7 +119,7 @@ const Dashboard = () => {
             </div>
             {stats.monthlyPayrollTotal > 0 && (
               <div className="stat-card" onClick={() => navigate('/payroll')} style={{ cursor: 'pointer' }}>
-                <div className="stat-icon payroll">💳</div>
+                <div className="stat-icon payroll"><Icon.payroll /></div>
                 <div className="stat-info">
                   <span className="stat-value stat-value-sm">{formatCurrency(stats.monthlyPayrollTotal)}</span>
                   <span className="stat-label">Última planilla neta</span>
@@ -135,7 +136,7 @@ const Dashboard = () => {
         <div className="quick-links-grid">
           {quickLinks.map(link => (
             <div key={link.path} className={`quick-card quick-card-${link.color}`} onClick={() => navigate(link.path)}>
-              <span className="quick-icon">{link.icon}</span>
+              <span className="quick-icon">{(() => { const C = Icon[link.icon]; return C ? <C /> : null; })()}</span>
               <div className="quick-info">
                 <span className="quick-label">{link.label}</span>
                 <span className="quick-desc">{link.desc}</span>

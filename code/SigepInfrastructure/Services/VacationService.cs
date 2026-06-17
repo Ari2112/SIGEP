@@ -394,7 +394,7 @@ public class VacationService : IVacationService
             .FirstOrDefaultAsync(vb => vb.EmployeeId == request.EmployeeId && vb.Year == request.StartDate.Year);
 
         if (oldBalance != null)
-            oldBalance.PendingDays -= request.RequestedDays;
+            oldBalance.PendingDays = Math.Max(0, oldBalance.PendingDays - request.RequestedDays);
 
         var newBalance = await _context.VacationBalances
             .FirstOrDefaultAsync(vb => vb.EmployeeId == request.EmployeeId && vb.Year == dto.StartDate.Year);
@@ -461,7 +461,8 @@ public class VacationService : IVacationService
 
         if (balance != null)
         {
-            balance.PendingDays -= request.RequestedDays;
+            // Nunca dejar PendingDays negativo: lo impide la constraint CK_VacationBalances_Days
+            balance.PendingDays = Math.Max(0, balance.PendingDays - request.RequestedDays);
             balance.UsedDays += request.RequestedDays;
         }
 
@@ -527,7 +528,7 @@ public class VacationService : IVacationService
             .FirstOrDefaultAsync(vb => vb.EmployeeId == request.EmployeeId && vb.Year == request.StartDate.Year);
 
         if (balance != null)
-            balance.PendingDays -= request.RequestedDays;
+            balance.PendingDays = Math.Max(0, balance.PendingDays - request.RequestedDays);
 
         await _context.SaveChangesAsync();
 
@@ -585,11 +586,11 @@ public class VacationService : IVacationService
         {
             if (request.RequestStatusId == approvedStatus.Id)
             {
-                balance.UsedDays -= request.RequestedDays;
+                balance.UsedDays = Math.Max(0, balance.UsedDays - request.RequestedDays);
             }
             else
             {
-                balance.PendingDays -= request.RequestedDays;
+                balance.PendingDays = Math.Max(0, balance.PendingDays - request.RequestedDays);
             }
         }
 

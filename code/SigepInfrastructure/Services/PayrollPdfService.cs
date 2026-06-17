@@ -171,9 +171,17 @@ public class PayrollPdfService
                         {
                             c.Item().Background("#fdf2f2").Padding(5)
                              .Text("DEDUCCIONES").Bold().FontColor("#c0392b");
-                            c.Item().PaddingTop(5);
-                            foreach (var ded in employee.Deductions)
-                                c.Item().Text($"{ded.DeductionTypeName}:   ₡{ded.Amount:N0}").FontColor("#c0392b");
+
+                            if (employee.Deductions == null || employee.Deductions.Count == 0)
+                            {
+                                c.Item().PaddingTop(5).Text("Sin deducciones").FontColor("#888888");
+                            }
+                            else
+                            {
+                                foreach (var ded in employee.Deductions)
+                                    c.Item().PaddingTop(2).Text($"{ded.DeductionTypeName}:   ₡{ded.Amount:N0}").FontColor("#c0392b");
+                            }
+
                             c.Item().BorderTop(1).BorderColor("#aaaaaa").PaddingTop(5)
                              .Text($"TOTAL DEDUCCIONES:   ₡{employee.TotalDeductions:N0}").Bold().FontColor("#c0392b");
                         });

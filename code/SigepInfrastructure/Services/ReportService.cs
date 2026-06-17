@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SigepApplication.DTOs.Reports;
 using SigepApplication.Interfaces;
+using SigepDomain.Entities;
 using SigepInfrastructure.Persistence;
 
 namespace SigepInfrastructure.Services;
@@ -186,6 +187,7 @@ public class ReportService : IReportService
             Employees = payroll.Details
                 .Select(d => new PayrollDetailSummaryDto
                 {
+                    EmployeeId = d.EmployeeId,
                     EmployeeName = d.Employee?.FullName ?? string.Empty,
                     PositionName = d.Employee?.Position?.Name,
                     BaseSalary = d.BaseSalary,
@@ -227,7 +229,7 @@ public class ReportService : IReportService
             .CountAsync(d => d.RequestStatusId == pendingRequestStatus.Id);
 
         var pendingOvertimes = await _context.OvertimeRecords
-            .CountAsync(o => o.Status.ToString() == "Detectada");
+            .CountAsync(o => o.Status == OvertimeStatus.Detectada);
 
         var attendanceToday = await _context.AttendanceRecords
             .CountAsync(a => a.Date == today.Date);

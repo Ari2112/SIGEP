@@ -27,8 +27,20 @@ const STATUS_LABEL = {
 const EMPTY_FORM = {
   employeeId: '', evaluationDate: new Date().toISOString().split('T')[0],
   periodStartDate: '', periodEndDate: '',
-  score: 7, comments: '', strengths: '', areasToImprove: '', goals: ''
+  scorePunctuality: 7, scoreObedience: 7, scoreQuality: 7,
+  scoreResponsibility: 7, scoreTeamwork: 7, scoreCustomerService: 7,
+  comments: '', strengths: '', areasToImprove: '', goals: ''
 };
+
+// Criterios fijos de evaluación (Opción A)
+const CRITERIA = [
+  { key: 'scorePunctuality',     label: 'Puntualidad',            help: '¿Llega a tiempo?' },
+  { key: 'scoreObedience',       label: 'Acatamiento de órdenes', help: '¿Sigue instrucciones?' },
+  { key: 'scoreQuality',         label: 'Calidad del trabajo',    help: '¿Hace bien sus tareas?' },
+  { key: 'scoreResponsibility',  label: 'Responsabilidad',        help: '¿Cumple sus deberes?' },
+  { key: 'scoreTeamwork',        label: 'Trabajo en equipo',      help: '¿Colabora con los demás?' },
+  { key: 'scoreCustomerService', label: 'Atención al cliente',    help: '¿Trata bien a clientes?' },
+];
 
 function PerformanceEval() {
   const { user } = useAuth();
@@ -120,8 +132,13 @@ function PerformanceEval() {
       setError('');
       await evaluationAPI.create({
         ...form,
-        employeeId:      parseInt(form.employeeId),
-        score:           parseInt(form.score),
+        employeeId:           parseInt(form.employeeId),
+        scorePunctuality:     parseInt(form.scorePunctuality),
+        scoreObedience:       parseInt(form.scoreObedience),
+        scoreQuality:         parseInt(form.scoreQuality),
+        scoreResponsibility:  parseInt(form.scoreResponsibility),
+        scoreTeamwork:        parseInt(form.scoreTeamwork),
+        scoreCustomerService: parseInt(form.scoreCustomerService),
         periodStartDate: form.periodStartDate || null,
         periodEndDate:   form.periodEndDate   || null,
       });
@@ -379,27 +396,55 @@ function PerformanceEval() {
                   </div>
                 </div>
 
-                {/* Puntuación */}
+                {/* Criterios de evaluación (Opción A: 6 fijos) */}
                 <div className="form-group">
-                  <label>Puntuación general (1 - 10) *</label>
-                  <div className="score-input">
-                    <input type="range" min="1" max="10" value={form.score}
-                      onChange={e => setForm({...form, score: parseInt(e.target.value)})} />
-                    <span style={{
-                      background: SCORE_INFO(form.score).bg,
-                      color: SCORE_INFO(form.score).color,
-                      padding:'4px 14px', borderRadius:20,
-                      fontWeight:700, fontSize:'1rem', minWidth:60, textAlign:'center'
-                    }}>
-                      {form.score}/10
-                    </span>
-                    <span style={{
-                      color: SCORE_INFO(form.score).color,
-                      fontWeight:500, fontSize:'0.9rem'
-                    }}>
-                      {SCORE_INFO(form.score).label}
-                    </span>
-                  </div>
+                  <label>Criterios de evaluación (1 - 10) *</label>
+                  <p style={{ margin:'0 0 10px', color:'#777', fontSize:'0.85rem' }}>
+                    Califique cada criterio. La nota general es el promedio.
+                  </p>
+
+                  {CRITERIA.map(c => {
+                    const val = form[c.key];
+                    const info = SCORE_INFO(val);
+                    return (
+                      <div key={c.key} style={{ marginBottom:12 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
+                          <span style={{ fontWeight:600, fontSize:'0.92rem' }}>
+                            {c.label} <span style={{ color:'#999', fontWeight:400 }}>· {c.help}</span>
+                          </span>
+                          <span style={{
+                            background: info.bg, color: info.color,
+                            padding:'2px 12px', borderRadius:16, fontWeight:700,
+                            fontSize:'0.9rem', minWidth:54, textAlign:'center'
+                          }}>
+                            {val}/10
+                          </span>
+                        </div>
+                        <input type="range" min="1" max="10" value={val} style={{ width:'100%' }}
+                          onChange={e => setForm({ ...form, [c.key]: parseInt(e.target.value) })} />
+                      </div>
+                    );
+                  })}
+
+                  {/* Promedio en vivo */}
+                  {(() => {
+                    const avg = Math.round(
+                      CRITERIA.reduce((s, c) => s + Number(form[c.key]), 0) / CRITERIA.length
+                    );
+                    const info = SCORE_INFO(avg);
+                    return (
+                      <div style={{
+                        marginTop:14, padding:'10px 14px', borderRadius:10,
+                        background: info.bg, display:'flex', alignItems:'center',
+                        justifyContent:'space-between', gap:10
+                      }}>
+                        <strong style={{ color: info.color }}>Nota general (promedio)</strong>
+                        <span style={{ color: info.color, fontWeight:700, fontSize:'1.15rem' }}>
+                          {avg}/10 · {info.label}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Comentarios */}
@@ -434,23 +479,29 @@ function PerformanceEval() {
                     onChange={e => setForm({...form, goals: e.target.value})} />
                 </div>
 
-                {/* Nota bono */}
-                {form.score >= 9 && (
-                  <div style={{
-                    background:'#e8f5e9', border:'1px solid #a5d6a7',
-                    borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:'0.88rem', color:'#1a6b1a'
-                  }}>
-                    ⭐ Puntuación excelente — este empleado podría ser candidato para reconocimiento o bono de desempeño.
-                  </div>
-                )}
-                {form.score < 5 && (
-                  <div style={{
-                    background:'#fdecea', border:'1px solid #ef9a9a',
-                    borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:'0.88rem', color:'#c0392b'
-                  }}>
-                    ⚠ Puntuación baja — se recomienda plan de mejora y seguimiento con el empleado.
-                  </div>
-                )}
+                {/* Notas según promedio */}
+                {(() => {
+                  const avg = Math.round(
+                    CRITERIA.reduce((s, c) => s + Number(form[c.key]), 0) / CRITERIA.length
+                  );
+                  if (avg >= 9) return (
+                    <div style={{
+                      background:'#e8f5e9', border:'1px solid #a5d6a7',
+                      borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:'0.88rem', color:'#1a6b1a'
+                    }}>
+                      ⭐ Puntuación excelente — este empleado podría ser candidato para reconocimiento o bono de desempeño.
+                    </div>
+                  );
+                  if (avg < 5) return (
+                    <div style={{
+                      background:'#fdecea', border:'1px solid #ef9a9a',
+                      borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:'0.88rem', color:'#c0392b'
+                    }}>
+                      ⚠ Puntuación baja — se recomienda plan de mejora y seguimiento con el empleado.
+                    </div>
+                  );
+                  return null;
+                })()}
 
                 <div className="modal-actions">
                   <button type="button" className="btn btn-secondary"
@@ -501,6 +552,31 @@ function PerformanceEval() {
                       style={{ marginTop:6, display:'inline-block' }}>
                       {STATUS_LABEL[selected.status] || selected.status}
                     </span>
+                  </div>
+                </div>
+
+                {/* Desglose por criterio */}
+                <div className="eval-section">
+                  <h4>Criterios evaluados</h4>
+                  <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }}>
+                    {CRITERIA.map(c => {
+                      const val = selected[c.key] ?? 0;
+                      const info = SCORE_INFO(val);
+                      return (
+                        <div key={c.key} style={{
+                          display:'flex', justifyContent:'space-between', alignItems:'center',
+                          padding:'6px 0', borderBottom:'1px solid #eee'
+                        }}>
+                          <span style={{ fontWeight:500 }}>{c.label}</span>
+                          <span style={{
+                            background: info.bg, color: info.color,
+                            padding:'2px 12px', borderRadius:16, fontWeight:700, fontSize:'0.88rem'
+                          }}>
+                            {val}/10
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

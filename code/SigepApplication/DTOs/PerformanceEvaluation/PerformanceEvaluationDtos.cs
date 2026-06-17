@@ -13,6 +13,12 @@ public class PerformanceEvaluationDto
     public DateTime? PeriodEndDate { get; set; }
     public int Score { get; set; }
     public string ScoreLabel { get; set; } = string.Empty;
+    public int ScorePunctuality { get; set; }
+    public int ScoreObedience { get; set; }
+    public int ScoreQuality { get; set; }
+    public int ScoreResponsibility { get; set; }
+    public int ScoreTeamwork { get; set; }
+    public int ScoreCustomerService { get; set; }
     public string? Comments { get; set; }
     public string? Strengths { get; set; }
     public string? AreasToImprove { get; set; }
@@ -29,7 +35,12 @@ public class CreateEvaluationDto
     public DateTime EvaluationDate { get; set; }
     public DateTime? PeriodStartDate { get; set; }
     public DateTime? PeriodEndDate { get; set; }
-    public int Score { get; set; }
+    public int ScorePunctuality { get; set; }
+    public int ScoreObedience { get; set; }
+    public int ScoreQuality { get; set; }
+    public int ScoreResponsibility { get; set; }
+    public int ScoreTeamwork { get; set; }
+    public int ScoreCustomerService { get; set; }
     public string? Comments { get; set; }
     public string? Strengths { get; set; }
     public string? AreasToImprove { get; set; }
@@ -38,7 +49,12 @@ public class CreateEvaluationDto
 
 public class UpdateEvaluationDto
 {
-    public int Score { get; set; }
+    public int ScorePunctuality { get; set; }
+    public int ScoreObedience { get; set; }
+    public int ScoreQuality { get; set; }
+    public int ScoreResponsibility { get; set; }
+    public int ScoreTeamwork { get; set; }
+    public int ScoreCustomerService { get; set; }
     public string? Comments { get; set; }
     public string? Strengths { get; set; }
     public string? AreasToImprove { get; set; }

@@ -370,6 +370,24 @@ function Employees() {
   // AddressSection definido fuera del componente
 
 
+  // Etiqueta de turno por HORARIO específico (no por nombre de persona).
+  // Se calcula desde startTime/endTime para que sea escalable y consistente.
+  const scheduleLabel = (s) => {
+    const to12h = (t) => {
+      if (!t || !t.includes(':')) return '';
+      const [hh, mm] = t.split(':').map(Number);
+      const suffix = hh >= 12 ? 'p.m.' : 'a.m.';
+      let h = hh % 12;
+      if (h === 0) h = 12;
+      return `${h}:${String(mm).padStart(2, '0')} ${suffix}`;
+    };
+    if (s.startTime && s.endTime) {
+      return `${to12h(s.startTime)} - ${to12h(s.endTime)}`;
+    }
+    // Respaldo si por algún motivo no vienen las horas
+    return s.displayName || s.name || 'Horario';
+  };
+
   // ── Render ─────────────────────────────────────────────────────────
   return (
     <Layout>
@@ -458,7 +476,7 @@ function Employees() {
 
         {/* ══════════ MODAL: Agregar ══════════ */}
         {showAdd && (
-          <div className="modal-overlay" onClick={() => setShowAdd(false)}>
+          <div className="modal-overlay">
             <div className="modal" style={{ maxWidth:660, maxHeight:'90vh', overflowY:'auto' }}
               onClick={e => e.stopPropagation()}>
               <div className="modal-header">
@@ -543,7 +561,7 @@ function Employees() {
                     <select value={form.scheduleId}
                       onChange={e => setForm({...form, scheduleId: e.target.value})}>
                       <option value="">Sin horario</option>
-                      {schedules.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {schedules.map(s => <option key={s.id} value={s.id}>{scheduleLabel(s)}</option>)}
                     </select>
                   </Field>
                 </div>
@@ -603,7 +621,7 @@ function Employees() {
 
         {/* ══════════ MODAL: Editar ══════════ */}
         {showEdit && selectedEmp && (
-          <div className="modal-overlay" onClick={() => setShowEdit(false)}>
+          <div className="modal-overlay">
             <div className="modal" style={{ maxWidth:640, maxHeight:'90vh', overflowY:'auto' }}
               onClick={e => e.stopPropagation()}>
               <div className="modal-header">
@@ -687,7 +705,7 @@ function Employees() {
                     <select value={editForm.scheduleId}
                       onChange={e => setEditForm({...editForm, scheduleId: e.target.value})}>
                       <option value="">Sin horario</option>
-                      {schedules.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {schedules.map(s => <option key={s.id} value={s.id}>{scheduleLabel(s)}</option>)}
                     </select>
                   </Field>
                   <Field label="Estado">

@@ -837,9 +837,6 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(s => s.ApprovedById)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.Property(s => s.TerminationTypeId)
-                .HasColumnName("TerminationType");
-
             entity.HasOne(s => s.TerminationType)
                 .WithMany(t => t.Settlements)
                 .HasForeignKey(s => s.TerminationTypeId)

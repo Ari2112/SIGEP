@@ -52,6 +52,17 @@ public class EmployeeService : IEmployeeService
         if (await _context.Employees.AnyAsync(e => e.Email == dto.Email))
             throw new InvalidOperationException("Ya existe un empleado con ese correo electrónico");
 
+        // Si se van a crear credenciales, validar el usuario ANTES de crear el
+        // empleado, para no dejar un empleado a medias si el usuario ya existe.
+        if (!string.IsNullOrWhiteSpace(dto.Username))
+        {
+            if (string.IsNullOrWhiteSpace(dto.Password))
+                throw new InvalidOperationException("Debe indicar una contraseña para el usuario");
+
+            if (await _context.Users.AnyAsync(u => u.Username == dto.Username))
+                throw new InvalidOperationException($"El usuario '{dto.Username}' ya existe en el sistema");
+        }
+
         var activeStatus = await GetEmployeeStatusAsync("Activo");
 
         var employee = new Employee
@@ -78,6 +89,29 @@ public class EmployeeService : IEmployeeService
         try { await SavePrimaryPhoneAsync(employee.Id, dto.Phone); } catch { }
         try { await SavePrimaryAddressAsync(employee.Id, dto.Address); } catch { }
         await _context.SaveChangesAsync();
+
+        // El empleado inicia con 0 días de vacaciones disponibles (los acumula
+        // con el tiempo). Se crea el saldo del año de ingreso en CERO para que
+        // no se otorgue el año completo automáticamente al consultarlo.
+        var hireYear = dto.HireDate.Year;
+        var balanceExists = await _context.VacationBalances
+            .AnyAsync(vb => vb.EmployeeId == employee.Id && vb.Year == hireYear);
+
+        if (!balanceExists)
+        {
+            _context.VacationBalances.Add(new VacationBalance
+            {
+                EmployeeId = employee.Id,
+                Year = hireYear,
+                TotalDays = 0,
+                UsedDays = 0,
+                PendingDays = 0,
+                CarriedOverDays = 0,
+                ExpirationDate = new DateTime(hireYear, 12, 31),
+                CreatedAt = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync();
+        }
 
         if (!string.IsNullOrWhiteSpace(dto.Username) && !string.IsNullOrWhiteSpace(dto.Password))
         {
@@ -247,19 +281,38 @@ public class EmployeeService : IEmployeeService
 
     public async Task<IEnumerable<ScheduleDto>> GetAllSchedulesAsync()
     {
-        return await _context.Schedules
+        var schedules = await _context.Schedules
             .Where(s => s.IsActive)
-            .OrderBy(s => s.Name)
-            .Select(s => new ScheduleDto
-            {
-                Id = s.Id,
-                Name = s.Name,
-                StartTime = s.StartTime.ToString(@"hh\:mm"),
-                EndTime = s.EndTime.ToString(@"hh\:mm"),
-                WorkHoursPerDay = s.WorkHoursPerDay,
-                IsActive = s.IsActive
-            })
+            .OrderBy(s => s.StartTime)
             .ToListAsync();
+
+        return schedules.Select(s => new ScheduleDto
+        {
+            Id = s.Id,
+            Name = s.Name,
+            StartTime = s.StartTime.ToString(@"hh\:mm"),
+            EndTime = s.EndTime.ToString(@"hh\:mm"),
+            WorkHoursPerDay = s.WorkHoursPerDay,
+            IsActive = s.IsActive
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Construye una etiqueta de turno a partir del horario, en formato
+    /// costarricense de 12 horas. Ej: "7:00 a.m. - 5:00 p.m.".
+    /// </summary>
+    public static string FormatScheduleLabel(TimeSpan start, TimeSpan end)
+    {
+        string To12h(TimeSpan t)
+        {
+            int h = t.Hours;
+            int m = t.Minutes;
+            string suffix = h >= 12 ? "p.m." : "a.m.";
+            int h12 = h % 12;
+            if (h12 == 0) h12 = 12;
+            return $"{h12}:{m:00} {suffix}";
+        }
+        return $"{To12h(start)} - {To12h(end)}";
     }
 
     public async Task<ScheduleDto> CreateScheduleAsync(CreateScheduleDto dto)
@@ -347,7 +400,9 @@ public class EmployeeService : IEmployeeService
             PositionId = e.PositionId,
             PositionName = e.Position?.Name,
             ScheduleId = e.ScheduleId,
-            ScheduleName = e.Schedule?.Name,
+            ScheduleName = e.Schedule != null
+                ? FormatScheduleLabel(e.Schedule.StartTime, e.Schedule.EndTime)
+                : null,
             VacationDaysPerYear = e.VacationDaysPerYear,
             CreatedAt = e.CreatedAt
         };

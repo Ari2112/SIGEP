@@ -166,10 +166,10 @@ function Settlements() {
                 <th>Empleado</th>
                 <th>Tipo</th>
                 <th>Fecha Term.</th>
-                <th>Años Trab.</th>
-                <th>Vac. Pendientes</th>
-                <th>Indemnización</th>
-                <th>Total Neto</th>
+                <th className="num">Años Trab.</th>
+                <th className="num">Vac. Pendientes</th>
+                <th className="num">Indemnización</th>
+                <th className="num">Total Neto</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -183,10 +183,10 @@ function Settlements() {
                     <td><strong>{s.employeeName}</strong></td>
                     <td><span className="badge badge-info">{TERMINATION_TYPES[s.terminationType] || s.terminationType}</span></td>
                     <td>{formatDate(s.terminationDate)}</td>
-                    <td>{s.workedYears} años {s.workedMonths} meses</td>
-                    <td>{s.pendingVacationDays} días</td>
-                    <td>{formatCurrency(s.severanceAmount)}</td>
-                    <td><strong>{formatCurrency(s.netTotal)}</strong></td>
+                    <td className="num">{s.workedYears} años {s.workedMonths} meses</td>
+                    <td className="num">{s.pendingVacationDays} días</td>
+                    <td className="num">{formatCurrency(s.severanceAmount)}</td>
+                    <td className="num"><strong>{formatCurrency(s.netTotal)}</strong></td>
                     <td><span className={`badge ${STATUS_COLORS[s.status] || 'badge-secondary'}`}>{s.status}</span></td>
                     <td>
                       <button className="btn btn-sm btn-ghost" onClick={() => handleViewDetail(s.id)}>Ver</button>
