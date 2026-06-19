@@ -223,7 +223,7 @@ function Employees() {
                                            errs.identificationNumber = 'Cédula inválida (9 dígitos)';
     if (!form.email.trim())                errs.email = 'Requerido';
     else if (!validarEmail(form.email))    errs.email = 'Correo inválido';
-    if (form.phone && !validarTelefono(form.phone)) errs.phone = 'Formato: 8888-8888';
+    if (form.phone && !validarTelefono(form.phone)) errs.phone = 'Debe ser un número de teléfono válido (solo dígitos, formato 8888-8888)';
     if (!form.hireDate)                    errs.hireDate   = 'Requerido';
     if (!form.baseSalary || parseFloat(form.baseSalary) <= 0) errs.baseSalary = 'Mayor a 0';
     // Dirección es opcional — no validar provincia/cantón/distrito
@@ -240,7 +240,7 @@ function Employees() {
     if (!editForm.lastName.trim())  errs.lastName  = 'Requerido';
     if (!editForm.email.trim())     errs.email     = 'Requerido';
     else if (!validarEmail(editForm.email)) errs.email = 'Correo inválido';
-    if (editForm.phone && !validarTelefono(editForm.phone)) errs.phone = 'Formato: 8888-8888';
+    if (editForm.phone && !validarTelefono(editForm.phone)) errs.phone = 'Debe ser un número de teléfono válido (solo dígitos, formato 8888-8888)';
     if (!editForm.baseSalary || parseFloat(editForm.baseSalary) <= 0) errs.baseSalary = 'Mayor a 0';
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -372,6 +372,13 @@ function Employees() {
 
   // Etiqueta de turno por HORARIO específico (no por nombre de persona).
   // Se calcula desde startTime/endTime para que sea escalable y consistente.
+  // Solo empleados con puesto de rango de supervisión pueden ser supervisores.
+  const esRangoSupervision = (positionName) => {
+    if (!positionName) return false;
+    return /supervis|gerente|jefe|jefatura|rrhh|recursos humanos|coordinad|director/i
+      .test(positionName);
+  };
+
   const scheduleLabel = (s) => {
     const to12h = (t) => {
       if (!t || !t.includes(':')) return '';
@@ -431,7 +438,7 @@ function Employees() {
                   <th>Cédula</th>
                   <th>Correo</th>
                   <th>Puesto</th>
-                  <th>Salario Base</th>
+                  <th className="num">Salario Base</th>
                   <th>Ingreso</th>
                   <th>Estado</th>
                   <th>Acciones</th>
@@ -447,7 +454,7 @@ function Employees() {
                       <td>{emp.identificationNumber}</td>
                       <td style={{ fontSize:'0.88rem' }}>{emp.email}</td>
                       <td style={{ fontSize:'0.88rem' }}>{emp.positionName || '-'}</td>
-                      <td>{fmtCurrency(emp.baseSalary)}</td>
+                      <td className="num">{fmtCurrency(emp.baseSalary)}</td>
                       <td>{fmt(emp.hireDate)}</td>
                       <td>
                         <span className={`badge ${emp.status === 'Activo' ? 'badge-success' : 'badge-secondary'}`}>
@@ -571,8 +578,9 @@ function Employees() {
                     <select value={form.supervisorId}
                       onChange={e => setForm({...form, supervisorId: e.target.value})}>
                       <option value="">Sin supervisor</option>
-                      {employees.filter(e => e.status === 'Activo')
-                        .map(e => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+                      {employees
+                        .filter(e => e.status === 'Activo' && esRangoSupervision(e.positionName))
+                        .map(e => <option key={e.id} value={e.id}>{e.fullName} — {e.positionName}</option>)}
                     </select>
                   </Field>
                   <Field label="Días de vacaciones al año">
