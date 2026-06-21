@@ -74,9 +74,12 @@ public class CreatePermissionRequestDto
 
     public DateTime? EndDate { get; set; }
 
-    public TimeSpan? StartTime { get; set; }
+    // Se reciben como texto ("HH:mm" o "HH:mm:ss") porque el input HTML
+    // <input type="time"> envía "09:00" sin segundos, y el deserializador
+    // JSON de TimeSpan exige segundos. Se parsean en el service con TimeSpan.TryParse.
+    public string? StartTime { get; set; }
 
-    public TimeSpan? EndTime { get; set; }
+    public string? EndTime { get; set; }
 
     public bool IsPartialDay { get; set; }
 

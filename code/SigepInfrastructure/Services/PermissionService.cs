@@ -171,14 +171,28 @@ public class PermissionService : IPermissionService
             throw new InvalidOperationException("La fecha de inicio no puede ser en el pasado");
 
         decimal durationDays;
+        TimeSpan? parsedStartTime = null;
+        TimeSpan? parsedEndTime = null;
 
         if (dto.IsPartialDay)
         {
-            if (!dto.StartTime.HasValue || !dto.EndTime.HasValue)
+            if (string.IsNullOrWhiteSpace(dto.StartTime) || string.IsNullOrWhiteSpace(dto.EndTime))
                 throw new InvalidOperationException("Para permisos parciales debe especificar hora de inicio y fin");
 
-            var duration = dto.EndTime.Value - dto.StartTime.Value;
-            durationDays = (decimal)duration.TotalHours / 8;
+            // El input HTML <input type="time"> envía "HH:mm" (ej. "09:00") sin segundos.
+            // TimeSpan.TryParse acepta ese formato, a diferencia del deserializador JSON de TimeSpan.
+            if (!TimeSpan.TryParse(dto.StartTime, out var startTime) ||
+                !TimeSpan.TryParse(dto.EndTime, out var endTime))
+                throw new InvalidOperationException("El formato de la hora no es válido");
+
+            if (endTime <= startTime)
+                throw new InvalidOperationException("La hora de fin debe ser posterior a la hora de inicio");
+
+            parsedStartTime = startTime;
+            parsedEndTime = endTime;
+
+            var duration = endTime - startTime;
+            durationDays = Math.Round((decimal)duration.TotalHours / 8m, 2);
         }
         else
         {
@@ -232,8 +246,8 @@ public class PermissionService : IPermissionService
             PermissionTypeId = dto.PermissionTypeId,
             StartDate = dto.StartDate,
             EndDate = dto.EndDate ?? dto.StartDate,
-            StartTime = dto.StartTime,
-            EndTime = dto.EndTime,
+            StartTime = parsedStartTime,
+            EndTime = parsedEndTime,
             IsPartialDay = dto.IsPartialDay,
             DurationDays = durationDays,
             Reason = dto.Reason,
