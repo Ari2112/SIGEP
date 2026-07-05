@@ -6,7 +6,9 @@ import './Payroll.css';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const PERIOD_TYPES = { PrimeraQuincena: 'Primera Quincena', SegundaQuincena: 'Segunda Quincena', Mensual: 'Mensual' };
-const STATUS_COLORS = { Borrador: 'badge-secondary', Procesando: 'badge-warning', Completada: 'badge-success', Anulada: 'badge-danger' };
+const STATUS_COLORS = { Borrador: 'badge-secondary', Procesada: 'badge-warning', Aprobada: 'badge-success', Pagada: 'badge-info', Anulada: 'badge-danger' };
+// Estados en los que todavía se puede anular una planilla (antes de ser aprobada/pagada)
+const ANNULABLE_STATUSES = ['Borrador', 'Procesada'];
 
 const API_URL = 'http://localhost:5017/api/v1';
 
@@ -67,6 +69,24 @@ function Payroll() {
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Error al aprobar');
+    }
+  };
+
+  const handleAnnul = async (id) => {
+    if (!window.confirm('¿Estás seguro de que querés anular esta planilla? Esta acción no se puede deshacer.')) {
+      return;
+    }
+    try {
+      setError('');
+      await payrollAPI.annul(id, '');
+      setSuccess('Planilla anulada');
+      loadPayrolls();
+      if (selected?.id === id) {
+        const res = await payrollAPI.getById(id);
+        setSelected(res.data);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error al anular la planilla');
     }
   };
 
@@ -167,8 +187,11 @@ function Payroll() {
                     <td style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       <button className="btn btn-sm btn-ghost" onClick={() => handleViewDetail(p.id)}>Ver</button>
                       <button className="btn btn-sm btn-primary" onClick={() => downloadPdf(p.id)}>PDF</button>
-                      {p.status === 'Completada' && !p.approvedAt && (
+                      {p.status === 'Procesada' && !p.approvedAt && (
                         <button className="btn btn-sm btn-success" onClick={() => handleApprove(p.id)}>Aprobar</button>
+                      )}
+                      {ANNULABLE_STATUSES.includes(p.status) && (
+                        <button className="btn btn-sm btn-danger" onClick={() => handleAnnul(p.id)}>Anular</button>
                       )}
                     </td>
                   </tr>
@@ -301,9 +324,14 @@ function Payroll() {
                 <button className="btn btn-primary" onClick={() => downloadPdf(selected.id)}>
                   Descargar PDF General
                 </button>
-                {selected.status === 'Completada' && !selected.approvedAt && (
+                {selected.status === 'Procesada' && !selected.approvedAt && (
                   <button className="btn btn-success" onClick={() => { handleApprove(selected.id); setShowDetail(false); }}>
                     Aprobar Planilla
+                  </button>
+                )}
+                {ANNULABLE_STATUSES.includes(selected.status) && (
+                  <button className="btn btn-danger" onClick={() => { handleAnnul(selected.id); setShowDetail(false); }}>
+                    Anular Planilla
                   </button>
                 )}
               </div>

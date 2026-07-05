@@ -423,9 +423,14 @@ detail.NetSalary = grossSalary - detailDeductions;
             ?? throw new ArgumentException("Planilla no encontrada");
 
         var annulledStatus = await GetPayrollStatusAsync("Anulada");
+        var draftStatus = await GetPayrollStatusAsync("Borrador");
+        var processedStatus = await GetPayrollStatusAsync("Procesada");
 
         if (payroll.PayrollStatusId == annulledStatus.Id)
             throw new InvalidOperationException("La planilla ya está anulada");
+
+        if (payroll.PayrollStatusId != draftStatus.Id && payroll.PayrollStatusId != processedStatus.Id)
+            throw new InvalidOperationException("Solo se puede anular una planilla en estado Borrador o Procesada");
 
         payroll.PayrollStatusId = annulledStatus.Id;
         payroll.Notes = notes;

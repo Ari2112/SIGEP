@@ -1,4 +1,3 @@
-
 //  Este es el PUNTO DE ARRANQUE del backend, es el servidor.
 //  sistema empieza a atender peticiones:
 //    - La conexión a la base de datos.
@@ -35,6 +34,11 @@ builder.Services.AddControllers()
 // la base y cómo entrar) se lee del archivo de configuración, no se escribe aquí.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Configuración de correo (EmailSettings): lee la sección "EmailSettings" de
+// appsettings.json / user-secrets y la deja disponible como IOptions<EmailSettings>
+// para quien la necesite (hoy: EmailService).
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 
 // Seguridad con tokens (JWT) 
 // Leemos la configuración del token y la llave secreta para firmarlo/validarlo.
@@ -86,6 +90,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IVacationService, VacationService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
@@ -197,4 +202,4 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseAuthentication();        // ¿quién es la persona? (revisa el token)
 app.UseAuthorization();         // ¿tiene permiso para esto? (revisa el rol)
 app.MapControllers();           // dirigir cada petición a su controlador
-app.Run();                      // arrancar!
+app.Run();                      // arrancar!                // arrancar!
