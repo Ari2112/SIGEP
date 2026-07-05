@@ -1,6 +1,18 @@
+
+//  MAPA DE RUTAS de la aplicación: define que pantalla se
+//  muestra según la dirección URL en la que esté el usuario. Por ejemplo,
+//  payroll muestra la pantalla de Planilla, employees la de Empleados, etc.
+//
+//  Además, envuelve TODO con dos cosas importantes:
+//    - AuthProvider: para que toda la app conozca al usuario conectado.
+//    - ProtectedRoute: para que las pantallas privadas exijan iniciar sesión.
+// ============================================================================
+
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+
+// Importamos todas las pantallas páginas del sistema.
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
@@ -18,11 +30,16 @@ import Profile from './pages/Profile';
 
 function App() {
   return (
+    // Todo va dentro de AuthProvider para compartir la sesión en toda la app.
     <AuthProvider>
+      {/* El Router es el que vigila la dirección del navegador. */}
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
+          {/* Ruta pública: cualquiera puede ver el login. */}
           <Route path="/login" element={<Login />} />
 
+          {/* Rutas privadas: cada una se envuelve en <ProtectedRoute> para
+              exigir que la persona haya iniciado sesión antes de entrar. */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
           <Route path="/vacations" element={<ProtectedRoute><Vacations /></ProtectedRoute>} />
@@ -37,8 +54,11 @@ function App() {
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
+          {/* Si alguien entra a la raíz "/", lo mandamos directo al dashboard. */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
+          {/* Ruta comodín (*): atrapa cualquier dirección que no exista y
+              muestra una página de error 404 amigable. */}
           <Route
             path="*"
             element={

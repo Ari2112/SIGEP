@@ -1,3 +1,13 @@
+
+//  Este es el PUNTO DE ARRANQUE del backend, es el servidor.
+//  sistema empieza a atender peticiones:
+//    - La conexión a la base de datos.
+//    - La seguridad con tokens (JWT).
+//    - El permiso para que el frontend pueda hablar con el backend (CORS).
+//    - El registro de todos los servicios (la lógica de cada módulo).
+//    - La documentación automática (Swagger).
+//  Al final, arranca el servidor y queda escuchando peticiones.
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -8,20 +18,26 @@ using SigepInfrastructure.Services;
 using SigepInfrastructure.Persistence;
 using System.Text;
 
+// "builder" es el armador de la aplicación. Aquí le vamos agregando piezas.
 var builder = WebApplication.CreateBuilder(args);
 
+// Activamos los controladores  y
+// configuramos cómo se traduce la información a JSON: nombres en minúscula
+// inicial (camelCase) y permitiendo tildes y caracteres especiales sin romperse.
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
     });
-    
-// Configure DbContext
+
+// Conexión a la base de datos SQL Server. La cadena de conexión (dónde está
+// la base y cómo entrar) se lee del archivo de configuración, no se escribe aquí.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Configure JWT Authentication
+// Seguridad con tokens (JWT) 
+// Leemos la configuración del token y la llave secreta para firmarlo/validarlo.
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"] ?? "MySecretKeyForSigepSystem2026VeryLongAndSecure123!";
 
@@ -32,6 +48,10 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    // Aquí decimos QUÉ revisar de cada token para considerarlo válido, que
+    // venga de nuestro emisor, para nuestra audiencia, que no esté vencido y
+    // que su firma coincida con nuestra llave secreta. Es lo que evita tokens
+    // falsificados.
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -46,7 +66,9 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// Configure CORS
+// Por seguridad, los navegadores bloquean que una página le hable a un servidor
+// de otra dirección. Aquí damos permiso explícito a nuestro frontend (que corre
+// en localhost:5173 con Vite, o 3000) para que SÍ pueda comunicarse con la API.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -57,8 +79,10 @@ builder.Services.AddCors(options =>
               .AllowCredentials();
     });
 });
-
-// Register Application Services
+// Aquí presentamos cada  interfaz con su implementación real. Esto
+// es la "inyección de dependencias": cuando un controlador pide, por ejemplo,
+// un IPayrollService, .NET sabe que debe entregarle un PayrollService.
+// "Scoped" significa que se crea uno nuevo por cada petición.
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
@@ -75,7 +99,9 @@ builder.Services.AddScoped<IDisabilityService, DisabilityService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<SigepInfrastructure.Services.PayrollPdfService>();
 
-// Configure Swagger/OpenAPI
+// Swagger genera una página web automática para PROBAR la API durante el
+// desarrollo (ver todos los endpoints y ejecutarlos). Aquí también le decimos
+// que acepte el token para poder probar las rutas protegidas.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -110,19 +136,25 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
-// Configurar QuestPDF (licencia community gratuita)
+
+// Activamos la licencia gratuita (Community) de QuestPDF, la librería que usamos
+// para generar los PDF (por ejemplo, las colillas de pago).
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
+// Con todas las piezas configuradas, construimos la aplicación.
 var app = builder.Build();
 
-// Carpeta fisica donde se guardan y se sirven los archivos subidos (documentos de incapacidades).
-// Se ancla a ContentRootPath para que NO dependa de WebRootPath (que puede ser null si no existe
-// wwwroot al iniciar) ni del directorio de trabajo actual. El DisabilityController guarda en esta
-// MISMA ruta, por lo que subida y servido siempre coinciden.
+// Carpeta física donde se guardan y se sirven los archivos subidos (por ejemplo,
+// los documentos de las incapacidades). La anclamos a la raíz del proyecto para
+// que NO dependa de configuraciones que podrían venir vacías al iniciar. El
+// controlador de incapacidades guarda en ESTA misma ruta, así subir y mostrar
+// siempre coinciden.
 var uploadsRoot = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
 Directory.CreateDirectory(Path.Combine(uploadsRoot, "uploads", "disabilities"));
 
-// Verificar conexión a la base de datos
+// Antes de empezar, probamos si podemos conectarnos a la base. Si sí, además
+// sembramos los catálogos básicos (roles, tipos de permiso, etc.) en caso de
+// que estén vacíos. Si no conecta, lo registramos para avisar qué hacer.
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -133,7 +165,6 @@ using (var scope = app.Services.CreateScope())
         {
             var logger = services.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Conexión a base de datos exitosa.");
-            // Inicializar catálogos si están vacíos
             await SigepInfrastructure.Persistence.DbInitializer.SeedAsync(context);
         }
     }
@@ -144,21 +175,26 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Cada petición pasa por estos pasos en orden. Pensemos en una fila de filtros.
+
+// Solo en desarrollo mostramos la página de Swagger.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-app.UseCors("AllowFrontend");
+app.UseHttpsRedirection();      // forzar conexión segura (https)
+app.UseCors("AllowFrontend");   // aplicar el permiso para el frontend
 
+// Servir los archivos subidos (documentos de incapacidades) desde la carpeta
+// que preparamos arriba.
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadsRoot)
 });
 
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
-app.Run();
+app.UseAuthentication();        // ¿quién es la persona? (revisa el token)
+app.UseAuthorization();         // ¿tiene permiso para esto? (revisa el rol)
+app.MapControllers();           // dirigir cada petición a su controlador
+app.Run();                      // arrancar!

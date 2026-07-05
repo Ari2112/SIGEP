@@ -80,6 +80,18 @@ public class PayrollDetail
 
     public decimal NetSalary { get; set; }
 
+    // === Incapacidades (Código de Trabajo / CCSS / INS) ===
+    // Días de incapacidad que cayeron dentro del período de pago.
+    public int DisabilityDays { get; set; }
+    // Monto rebajado del salario por los días incapacitados.
+    public decimal DisabilityDeduction { get; set; }
+    // Lo que el patrono sí pagó (50% de los primeros 3 días en enfermedad común).
+    public decimal DisabilityEmployerPay { get; set; }
+    // Subsidio informativo que la CCSS o el INS depositará (NO lo paga la planilla).
+    public decimal DisabilitySubsidyAmount { get; set; }
+    // Entidad que paga el subsidio: "CCSS", "INS" o "CCSS/INS".
+    public string? DisabilitySubsidyEntity { get; set; }
+
     public string? Notes { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

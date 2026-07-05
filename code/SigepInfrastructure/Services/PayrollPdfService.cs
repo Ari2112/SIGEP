@@ -160,6 +160,12 @@ public class PayrollPdfService
                             c.Item().PaddingTop(5).Text($"Salario base:   ₡{employee.BaseSalary:N0}");
                             if (employee.OvertimeHours > 0)
                                 c.Item().Text($"Horas extra ({employee.OvertimeHours}h):   ₡{employee.OvertimeAmount:N0}");
+                            if (employee.DisabilityDays > 0)
+                            {
+                                c.Item().Text($"Incapacidad ({employee.DisabilityDays} días):   -₡{employee.DisabilityDeduction:N0}").FontColor("#c0392b");
+                                if (employee.DisabilityEmployerPay > 0)
+                                    c.Item().Text($"Pago patrono (50% primeros 3 días):   ₡{employee.DisabilityEmployerPay:N0}");
+                            }
                             c.Item().BorderTop(1).BorderColor("#aaaaaa").PaddingTop(5)
                              .Text($"SALARIO BRUTO:   ₡{employee.GrossSalary:N0}").Bold();
                         });
@@ -193,6 +199,16 @@ public class PayrollPdfService
                         c.Item().Text($"SALARIO NETO A RECIBIR:   ₡{employee.NetSalary:N0}")
                          .Bold().FontSize(14).FontColor(Colors.White);
                     });
+
+                    // Nota informativa del subsidio de incapacidad (lo paga la CCSS/INS, no la empresa)
+                    if (employee.DisabilitySubsidyAmount > 0)
+                    {
+                        col.Item().PaddingTop(8).Text(
+                            $"* Subsidio por incapacidad: la {employee.DisabilitySubsidyEntity} le depositará " +
+                            $"aproximadamente ₡{employee.DisabilitySubsidyAmount:N0} de forma directa. " +
+                            "Este monto NO forma parte de este pago de planilla.")
+                            .FontSize(8).Italic().FontColor("#555555");
+                    }
 
                     // Firmas
                     col.Item().PaddingTop(50).Row(row =>

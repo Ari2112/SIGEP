@@ -111,8 +111,31 @@ public class SettlementService : ISettlementService
 
         decimal vacationAmount = pendingVacDays * dailySalary;
 
-int monthsThisYear = terminationDate.Month;
-decimal proportionalBonus = (lastSalary / 12) * monthsThisYear;
+// === Aguinaldo proporcional - Ley No. 2412 / MTSS ===
+// El periodo legal del aguinaldo va del 1 de diciembre del año anterior
+// al 30 de noviembre del año en curso, y se paga 1/12 de lo devengado
+// en ese periodo. Aquí contamos SOLO los días realmente laborados dentro
+// del periodo: desde la fecha de ingreso (o el 1 de diciembre, lo que sea
+// más reciente) hasta la fecha de terminación. Nunca se usa el número de
+// mes del calendario, porque eso ignora cuándo entró la persona.
+
+// Año en que arranca el periodo de aguinaldo que contiene la terminación.
+// Si la terminación es en diciembre, el periodo arrancó ese mismo año;
+// en cualquier otro mes, arrancó el 1 de diciembre del año anterior.
+int aguinaldoPeriodStartYear = terminationDate.Month == 12
+    ? terminationDate.Year
+    : terminationDate.Year - 1;
+var aguinaldoPeriodStart = new DateTime(aguinaldoPeriodStartYear, 12, 1);
+
+// Inicio real de acumulación: lo más reciente entre el ingreso y el periodo.
+var bonusAccrualStart = hireDate > aguinaldoPeriodStart ? hireDate : aguinaldoPeriodStart;
+
+// Días laborados dentro del periodo (nunca negativo).
+int bonusDaysWorked = Math.Max(0, (terminationDate - bonusAccrualStart).Days);
+
+// Aguinaldo = salario mensual * (días trabajados / 360).
+// Equivale a (salario diario) * días / 12, es decir, lo devengado / 12.
+decimal proportionalBonus = Math.Round(lastSalary * bonusDaysWorked / 360m, 2);
 
 // Preaviso - Art. 28 Código de Trabajo de Costa Rica
 decimal noticeAmount = 0;

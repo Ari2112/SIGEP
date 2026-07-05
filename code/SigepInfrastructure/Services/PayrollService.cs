@@ -71,10 +71,22 @@ public class PayrollService : IPayrollService
                 p.PeriodMonth == dto.PeriodMonth &&
                 p.PayrollPeriodTypeId == dto.PeriodType);
 
-        if (existing != null && existing.PayrollStatusId != annulledStatus.Id)
+        if (existing != null)
         {
-            throw new InvalidOperationException(
-                $"Ya existe una planilla para el período {dto.PeriodYear}/{dto.PeriodMonth} tipo {periodType.Name}");
+            if (existing.PayrollStatusId != annulledStatus.Id)
+            {
+                throw new InvalidOperationException(
+                    $"Ya existe una planilla para el período {dto.PeriodYear}/{dto.PeriodMonth} tipo {periodType.Name}");
+            }
+
+            // La planilla anterior está anulada. La restricción única
+            // UQ_Payrolls_Period (año, mes, tipo) no permite dos filas con el
+            // mismo período aunque una esté anulada, así que se elimina la vieja
+            // para liberar el período antes de regenerar. El borrado en cascada
+            // se lleva detalles, deducciones y beneficios; las horas extra ligadas
+            // quedan con PayrollDetailId nulo y vuelven a quedar disponibles.
+            _context.Payrolls.Remove(existing);
+            await _context.SaveChangesAsync();
         }
 
         var (startDate, endDate) = GetPeriodDates(dto.PeriodYear, dto.PeriodMonth, periodType.Name);
@@ -177,7 +189,81 @@ public class PayrollService : IPayrollService
             decimal dailySalary = periodSalary / (IsMonthlyPeriod(periodType.Name) ? 30m : 15m);
             decimal unpaidPermissionDeduction = Math.Round(dailySalary * unpaidPermissionDays, 2);
 
-            decimal grossSalary = periodSalary + overtimeAmount - unpaidPermissionDeduction;
+            // === INCAPACIDADES aprobadas que caen dentro del período ===
+            // Reglas legales:
+            //  - Enfermedad común (CCSS): el patrono paga el 50% de los PRIMEROS 3 días;
+            //    del día 4 en adelante la CCSS paga el 60% (depósito directo, informativo).
+            //  - Accidente laboral (INS): el patrono NO paga; el INS paga 60% desde el día 1.
+            //  - Maternidad (CCSS): el patrono NO paga; la CCSS paga 100%.
+            // En todos los casos los días incapacitados se REBAJAN del salario, porque el
+            // subsidio no es salario y lo deposita la entidad aseguradora, no la empresa.
+            var approvedDisabilities = await _context.DisabilityRequests
+                .Include(dr => dr.DisabilityType)
+                .Include(dr => dr.RequestStatus)
+                .Where(dr =>
+                    dr.EmployeeId == emp.Id &&
+                    dr.RequestStatus != null &&
+                    dr.RequestStatus.Name == "Aprobada" &&
+                    dr.StartDate <= endDate &&
+                    dr.EndDate >= startDate)
+                .ToListAsync();
+
+            int disabilityDays = 0;
+            decimal disabilityDeduction = 0m;
+            decimal disabilityEmployerPay = 0m;
+            decimal disabilitySubsidy = 0m;
+            string? subsidyEntity = null;
+
+            foreach (var dis in approvedDisabilities)
+            {
+                string typeName = dis.DisabilityType?.Name ?? "Otro";
+                bool isINS = typeName.Contains("Accidente", StringComparison.OrdinalIgnoreCase);
+                bool isMaternidad = typeName.Contains("Maternidad", StringComparison.OrdinalIgnoreCase);
+                // Enfermedad común y "Otro" se tratan como CCSS por enfermedad.
+
+                string thisEntity = isINS ? "INS" : "CCSS";
+                subsidyEntity = (subsidyEntity == null || subsidyEntity == thisEntity)
+                    ? thisEntity
+                    : "CCSS/INS";
+
+                // Recorrer solo los días de la incapacidad que caen dentro del período.
+                var dayStart = dis.StartDate.Date > startDate.Date ? dis.StartDate.Date : startDate.Date;
+                var dayEnd = dis.EndDate.Date < endDate.Date ? dis.EndDate.Date : endDate.Date;
+
+                for (var day = dayStart; day <= dayEnd; day = day.AddDays(1))
+                {
+                    // Número de día dentro de la incapacidad (1, 2, 3, ...).
+                    int dayNumber = (day - dis.StartDate.Date).Days + 1;
+
+                    disabilityDays++;
+                    disabilityDeduction += dailySalary; // el día no se paga como salario
+
+                    if (isINS)
+                    {
+                        disabilitySubsidy += dailySalary * 0.60m;          // INS 60% desde el día 1
+                    }
+                    else if (isMaternidad)
+                    {
+                        disabilitySubsidy += dailySalary * 1.00m;          // CCSS maternidad 100%
+                    }
+                    else if (dayNumber <= 3)
+                    {
+                        disabilityEmployerPay += dailySalary * 0.50m;      // patrono paga 50%
+                        disabilitySubsidy += dailySalary * 0.50m;          // CCSS paga el otro 50%
+                    }
+                    else
+                    {
+                        disabilitySubsidy += dailySalary * 0.60m;          // CCSS 60% desde el día 4
+                    }
+                }
+            }
+
+            disabilityDeduction = Math.Round(disabilityDeduction, 2);
+            disabilityEmployerPay = Math.Round(disabilityEmployerPay, 2);
+            disabilitySubsidy = Math.Round(disabilitySubsidy, 2);
+
+            decimal grossSalary = periodSalary + overtimeAmount - unpaidPermissionDeduction
+                                  - disabilityDeduction + disabilityEmployerPay;
 
             var detail = new PayrollDetail
             {
@@ -188,6 +274,11 @@ public class PayrollService : IPayrollService
                 OvertimeHours = overtimeHours,
                 OvertimeAmount = overtimeAmount,
                 GrossSalary = grossSalary,
+                DisabilityDays = disabilityDays,
+                DisabilityDeduction = disabilityDeduction,
+                DisabilityEmployerPay = disabilityEmployerPay,
+                DisabilitySubsidyAmount = disabilitySubsidy,
+                DisabilitySubsidyEntity = subsidyEntity,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -480,6 +571,11 @@ detail.NetSalary = grossSalary - detailDeductions;
                 TotalDeductions = d.TotalDeductions,
                 TotalBenefits = d.TotalBenefits,
                 NetSalary = d.NetSalary,
+                DisabilityDays = d.DisabilityDays,
+                DisabilityDeduction = d.DisabilityDeduction,
+                DisabilityEmployerPay = d.DisabilityEmployerPay,
+                DisabilitySubsidyAmount = d.DisabilitySubsidyAmount,
+                DisabilitySubsidyEntity = d.DisabilitySubsidyEntity,
                 Notes = d.Notes,
                 Deductions = d.Deductions.Select(dd => new DeductionItemDto
                 {
@@ -503,28 +599,31 @@ detail.NetSalary = grossSalary - detailDeductions;
         return dto;
     }
     /// <summary>
-/// Calcula el impuesto sobre la renta según tramos progresivos CR.
-/// Tramos aproximados
-/// Hasta ₡941.000: exento
-/// ₡941.001 - ₡1.381.000: 10%
-/// ₡1.381.001 - ₡2.423.000: 15%
-/// ₡2.423.001 - ₡4.845.000: 20%
-/// Más de ₡4.845.000: 25%
+/// Calcula el impuesto sobre la renta según tramos progresivos CR (2026).
+/// Decreto Ejecutivo N° 45333-H.
+/// Hasta ₡918.000: exento
+/// ₡918.001 - ₡1.347.000: 10%
+/// ₡1.347.001 - ₡2.364.000: 15%
+/// ₡2.364.001 - ₡4.727.000: 20%
+/// Más de ₡4.727.000: 25%
 /// </summary>
 private decimal CalculateIncomeTax(decimal monthlyGross)
 {
     decimal tax = 0;
 
-    if (monthlyGross <= 941000m)
+    // Tramos oficiales 2026 — Decreto Ejecutivo N° 45333-H (Gaceta 229, 05/12/2025).
+    // Exento hasta 918.000; 10% hasta 1.347.000; 15% hasta 2.364.000;
+    // 20% hasta 4.727.000; 25% sobre el exceso.
+    if (monthlyGross <= 918000m)
         tax = 0;
-    else if (monthlyGross <= 1381000m)
-        tax = (monthlyGross - 941000m) * 0.10m;
-    else if (monthlyGross <= 2423000m)
-        tax = (440000m * 0.10m) + ((monthlyGross - 1381000m) * 0.15m);
-    else if (monthlyGross <= 4845000m)
-        tax = (440000m * 0.10m) + (1042000m * 0.15m) + ((monthlyGross - 2423000m) * 0.20m);
+    else if (monthlyGross <= 1347000m)
+        tax = (monthlyGross - 918000m) * 0.10m;
+    else if (monthlyGross <= 2364000m)
+        tax = (429000m * 0.10m) + ((monthlyGross - 1347000m) * 0.15m);
+    else if (monthlyGross <= 4727000m)
+        tax = (429000m * 0.10m) + (1017000m * 0.15m) + ((monthlyGross - 2364000m) * 0.20m);
     else
-        tax = (440000m * 0.10m) + (1042000m * 0.15m) + (2422000m * 0.20m) + ((monthlyGross - 4845000m) * 0.25m);
+        tax = (429000m * 0.10m) + (1017000m * 0.15m) + (2363000m * 0.20m) + ((monthlyGross - 4727000m) * 0.25m);
 
     return Math.Round(tax, 2);
 }

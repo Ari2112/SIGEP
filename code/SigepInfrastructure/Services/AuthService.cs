@@ -1,3 +1,10 @@
+// Se encarga de TODO lo relacionado con iniciar sesión: revisa que el usuario 
+//y la contraseña sean correctos,
+//  y si todo está bien, le entrega al usuario un token
+//  para que pueda moverse por el sistema sin tener que volver a escribir su
+//  clave en cada pantalla.
+// ============================================================================
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -12,32 +19,47 @@ namespace SigepInfrastructure.Services;
 
 public class AuthService : IAuthService
 {
+    //  - _context: es la conexión a la base de datos (para buscar usuarios).
+    //  - _configuration: nos deja leer valores de configuración, como la
+    //    llave secreta con la que se firman los tokens.
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
-
     public AuthService(ApplicationDbContext context, IConfiguration configuration)
     {
         _context = context;
         _configuration = configuration;
     }
-
+    //  LoginAsync: este es el método que se ejecuta cuando alguien intenta
+    //  entrar al sistema con su usuario y contraseña.
     public async Task<LoginResponseDto?> LoginAsync(string username, string password)
     {
+        // Buscamos en la base de datos un usuario que tenga ese nombre y que
+        // además esté activo. De paso traemos su información de empleado y su
+        // rol para no hacer más consultas luego.
         var user = await _context.Users
             .Include(u => u.Employee)
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Username == username && u.IsActive);
 
+        // Si no encontramos a nadie con ese usuario, devolvemos "nada"
+        // (null), que el sistema interpreta como "credenciales incorrectas".
         if (user == null)
             return null;
 
+        // Aquí comparamos la contraseña que escribió la persona contra la
+        // versión encriptada guardada en la base
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             return null;
 
+        // Si el usuario no tiene rol asignado, por seguridad lo tratamos
+        // como "Empleado" (el rol con menos permisos).
         string roleName = user.Role != null ? user.Role.Name : "Empleado";
 
+        // Generamos el "pase de entrada" (token) con los datos del usuario.
         var token = GenerateJwtToken(user.Id, user.Username, roleName, user.EmployeeId);
 
+        // Devolvemos al frontend un paquete con el token y los datos básicos
+        // que la pantalla necesita mostrar (nombre, rol, etc.).
         return new LoginResponseDto
         {
             Token = token,
@@ -49,8 +71,12 @@ public class AuthService : IAuthService
         };
     }
 
+    //  GetCurrentUserAsync: sirve para volver a obtener los datos del usuario
+    //  que YA inició sesión (por ejemplo, al refrescar la página). Aquí no
+    //  pedimos contraseña porque la persona ya está autenticada con su token.
     public async Task<LoginResponseDto?> GetCurrentUserAsync(int userId)
     {
+        // Buscamos al usuario por su identificador, siempre que siga activo.
         var user = await _context.Users
             .Include(u => u.Employee)
             .Include(u => u.Role)
@@ -61,6 +87,8 @@ public class AuthService : IAuthService
 
         string roleName = user.Role != null ? user.Role.Name : "Empleado";
 
+        // Devolvemos sus datos. El token va vacío a propósito, porque en este
+        // caso solo queremos refrescar la información, no generar un pase nuevo.
         return new LoginResponseDto
         {
             Token = string.Empty,
@@ -71,14 +99,21 @@ public class AuthService : IAuthService
             FullName = user.Employee?.FullName
         };
     }
-
+    //  GenerateJwtToken: arma el "pase de entrada" (el token JWT). 
     private string GenerateJwtToken(int userId, string username, string role, int? employeeId = null)
     {
+        // Leemos la configuración del token (llave secreta, emisor, etc.).
+        // Si por alguna razón no está configurada, usamos un valor por defecto.
         var jwtSettings = _configuration.GetSection("JwtSettings");
         var secretKey = jwtSettings["SecretKey"] ?? "MySecretKeyForSigepSystem2026VeryLongAndSecure123!";
+
+        // Con esa llave secreta preparamos la "firma" del carnet. Es lo que
+        // garantiza que el token salió de nuestro servidor y no fue alterado.
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        // Los "claims" son los datos que viajan dentro del carnet: quién es la
+        // persona, su nombre de usuario, un identificador único, etc.
         var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
@@ -88,15 +123,20 @@ public class AuthService : IAuthService
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-        // Claims de rol. Para el administrador se emiten AMBAS variantes
-        // ("Admin" y "Administrador") de modo que cualquier [Authorize(Roles = ...)]
-        // funcione sin importar la grafia usada en cada controlador.
+        // Agregamos el o los roles. Para el administrador se escriben AMBAS
+        // variantes ("Admin" y "Administrador") para que las pantallas funcionen
+        // sin importar cuál nombre usó cada parte del sistema.
         foreach (var roleClaim in BuildRoleClaims(role))
             claims.Add(roleClaim);
 
+        // Si el usuario está ligado a un empleado, también guardamos ese dato
+        // dentro del token para tenerlo a mano.
         if (employeeId.HasValue)
             claims.Add(new Claim("EmployeeId", employeeId.Value.ToString()));
 
+        // Finalmente armamos el token con todos esos datos. Le ponemos una
+        // fecha de vencimiento de 8 horas: pasado ese tiempo, la persona debe
+        // volver a iniciar sesión (es una medida de seguridad estándar).
         var token = new JwtSecurityToken(
             issuer: jwtSettings["Issuer"] ?? "SigepAPI",
             audience: jwtSettings["Audience"] ?? "SigepClient",
@@ -105,29 +145,36 @@ public class AuthService : IAuthService
             signingCredentials: credentials
         );
 
+        // Convertimos el token a texto para enviarlo al
+        // frontend, que lo guardará y lo usará en cada petición.
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-
-    /// <summary>
-    /// Construye los claims de rol para el usuario. El rol del administrador
-    /// aparece en la base de datos como "Administrador", pero algunos controladores
-    /// historicamente usaron "Admin". Para garantizar consistencia y no romper
-    /// ninguna autorizacion existente, el administrador recibe ambas variantes.
-    /// </summary>
+    //  BuildRoleClaims: resuelve un problema histórico del proyecto. En la base
+    //  de datos el rol se guardó como "Administrador", pero algunas pantallas
+    //  del backend se programaron esperando "Admin". Eso causaba errores de
+    //  permisos (error 403). La solución: cuando alguien es administrador, le
+    //  agregamos ambas palabras en el token, así cualquier pantalla lo
+    //  reconoce sin importar cuál nombre haya usado.
     private static IEnumerable<Claim> BuildRoleClaims(string role)
     {
+        // Usamos un conjunto que ignora mayúsculas/minúsculas para no repetir
+        // roles por diferencias de escritura.
         var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { role };
 
+        // Detectamos si la persona es administrador (con cualquiera de los
+        // dos nombres posibles).
         bool esAdministrador =
             role.Equals("Administrador", StringComparison.OrdinalIgnoreCase) ||
             role.Equals("Admin", StringComparison.OrdinalIgnoreCase);
 
+        // Si lo es, agregamos las dos variantes para cubrir todos los casos.
         if (esAdministrador)
         {
             roles.Add("Administrador");
             roles.Add("Admin");
         }
 
+        // Convertimos cada nombre de rol en un "claim" de rol para el token.
         return roles.Select(r => new Claim(ClaimTypes.Role, r));
     }
 }
