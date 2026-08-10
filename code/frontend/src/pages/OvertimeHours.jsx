@@ -507,6 +507,3 @@ function OvertimeHours() {
 }
 
 export default OvertimeHours;
-
-
-export default OvertimeHours;
