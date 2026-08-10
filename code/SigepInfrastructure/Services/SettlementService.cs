@@ -94,10 +94,22 @@ public class SettlementService : ISettlementService
         if (terminationDate < hireDate)
             throw new InvalidOperationException("La fecha de terminación no puede ser anterior a la fecha de ingreso");
 
+        // Tiempo trabajado (años, meses, días) entre la fecha de ingreso y la de
+        // terminación. Se calcula la diferencia de meses de calendario y luego se
+        // valida contra la diferencia real de días: si el día de terminación cae
+        // antes que el día de ingreso dentro del mes (ej. ingresó el 28 y terminó
+        // el 8), hay que "pedir prestado" un mes, igual que restando fechas a mano.
+        // Sin este ajuste, totalMonths queda inflado en 1 y eso afecta también los
+        // tramos de preaviso y cesantía más abajo, que dependen de este mismo valor.
         var totalMonths = (terminationDate.Year - hireDate.Year) * 12 + terminationDate.Month - hireDate.Month;
+        var workedDays = (terminationDate - hireDate.AddMonths(totalMonths)).Days;
+        if (workedDays < 0)
+        {
+            totalMonths--;
+            workedDays = (terminationDate - hireDate.AddMonths(totalMonths)).Days;
+        }
         var workedYears = totalMonths / 12;
         var workedMonths = totalMonths % 12;
-        var workedDays = (terminationDate - hireDate.AddMonths(totalMonths)).Days;
 
         var currentYear = terminationDate.Year;
 

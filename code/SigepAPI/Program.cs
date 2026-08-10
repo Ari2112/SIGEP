@@ -103,6 +103,7 @@ builder.Services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationS
 builder.Services.AddScoped<IDisabilityService, DisabilityService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<SigepInfrastructure.Services.PayrollPdfService>();
+builder.Services.AddScoped<SigepInfrastructure.Services.SettlementPdfService>();
 
 // Swagger genera una página web automática para PROBAR la API durante el
 // desarrollo (ver todos los endpoints y ejecutarlos). Aquí también le decimos

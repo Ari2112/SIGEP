@@ -3,6 +3,8 @@ import { settlementAPI, employeeAPI } from '../api/api';
 import Layout from '../components/Layout';
 import './Settlements.css';
 
+const API_URL = 'http://localhost:5017/api/v1';
+
 const TERMINATION_TYPES = {
   1: 'Renuncia',
   2: 'Despido con responsabilidad',
@@ -138,6 +140,23 @@ function Settlements() {
     }
   };
 
+  const downloadPdf = (settlementId, employeeName) => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_URL}/settlement/${settlementId}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Liquidacion_${employeeName?.replace(/ /g, '_') || settlementId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => setError('Error al generar PDF de liquidación'));
+  };
+
   const formatCurrency = (v) => new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 0 }).format(v || 0);
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-CR') : '-';
 
@@ -193,6 +212,7 @@ function Settlements() {
                       {s.status === 'Calculada' && (
                         <button className="btn btn-sm btn-success" onClick={() => handleApprove(s.id)}>Aprobar</button>
                       )}
+                      <button className="btn btn-sm btn-primary" onClick={() => downloadPdf(s.id, s.employeeName)}>PDF</button>
                     </td>
                   </tr>
                 ))
@@ -314,6 +334,9 @@ function Settlements() {
               </div>
               <div className="modal-actions">
                 <button className="btn btn-secondary" onClick={() => setShowDetail(false)}>Cerrar</button>
+                <button className="btn btn-primary" onClick={() => downloadPdf(selected.id, selected.employeeName)}>
+                  Descargar PDF
+                </button>
                 {selected.status === 'Calculada' && (
                   <button className="btn btn-success" onClick={() => handleApprove(selected.id)}>Aprobar</button>
                 )}

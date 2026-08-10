@@ -94,17 +94,9 @@ public class AnnualBonusService : IAnnualBonusService
 
         foreach (var emp in employees)
         {
-            // Meses trabajados dentro del período legal (1 dic año anterior → 30 nov)
-            DateTime empStart = emp.HireDate > periodStart ? emp.HireDate : periodStart;
-            DateTime empEnd   = periodEnd;
+            var (workedMonths, proportionalAmount) = CalculateProportionalBonus(emp, periodStart, periodEnd);
 
-            int workedMonths = ((empEnd.Year - empStart.Year) * 12) + empEnd.Month - empStart.Month;
-            if (empStart.Day > 1) workedMonths--;
-            if (workedMonths < 0)  workedMonths = 0;
-            if (workedMonths > 12) workedMonths = 12;
-
-            decimal averageSalary     = emp.BaseSalary;
-            decimal proportionalAmount = Math.Round((averageSalary / 12m) * workedMonths, 2);
+            decimal averageSalary = emp.BaseSalary;
 
             var detail = new AnnualBonusDetail
             {
@@ -112,9 +104,9 @@ public class AnnualBonusService : IAnnualBonusService
                 EmployeeId         = emp.Id,
                 WorkedMonths       = workedMonths,
                 AverageSalary      = averageSalary,
-                ProportionalAmount = Math.Round(proportionalAmount, 2),
+                ProportionalAmount = proportionalAmount,
                 Deductions         = 0,
-                NetAmount          = Math.Round(proportionalAmount, 2),
+                NetAmount          = proportionalAmount,
                 CreatedAt          = DateTime.UtcNow
             };
 
@@ -195,16 +187,9 @@ public class AnnualBonusService : IAnnualBonusService
 
         foreach (var emp in employees)
         {
-            DateTime empStart = emp.HireDate > periodStart ? emp.HireDate : periodStart;
-            DateTime empEnd   = periodEnd;
+            var (workedMonths, proportionalAmount) = CalculateProportionalBonus(emp, periodStart, periodEnd);
 
-            int workedMonths = ((empEnd.Year - empStart.Year) * 12) + empEnd.Month - empStart.Month;
-            if (empStart.Day > 1) workedMonths--;
-            if (workedMonths < 0)  workedMonths = 0;
-            if (workedMonths > 12) workedMonths = 12;
-
-            decimal averageSalary      = emp.BaseSalary;
-            decimal proportionalAmount = Math.Round((averageSalary / 12m) * workedMonths, 2);
+            decimal averageSalary = emp.BaseSalary;
 
             var detail = new AnnualBonusDetail
             {
@@ -239,6 +224,30 @@ public class AnnualBonusService : IAnnualBonusService
         );
 
         return (await GetByIdAsync(id))!;
+    }
+
+    // === Aguinaldo proporcional - Ley No. 2412 / MTSS ===
+    // El período legal del aguinaldo va del 1 de diciembre del año anterior al 30 de
+    // noviembre del año en curso. Se cuentan los DÍAS realmente trabajados dentro del
+    // período (desde el ingreso o el 1 de diciembre, lo que sea más reciente, hasta el
+    // fin del período) y se calcula salario × días ÷ 360. Nunca se usa el número de mes
+    // de calendario, porque eso genera un error de conteo (ver historial de correcciones).
+    // Esta es la misma metodología ya usada en SettlementService para liquidaciones,
+    // para que ambos módulos calculen el aguinaldo de forma consistente.
+    private static (int WorkedMonths, decimal ProportionalAmount) CalculateProportionalBonus(
+        Employee emp, DateTime periodStart, DateTime periodEnd)
+    {
+        DateTime accrualStart = emp.HireDate > periodStart ? emp.HireDate : periodStart;
+        int daysWorked = Math.Max(0, (periodEnd - accrualStart).Days);
+
+        decimal salary = emp.BaseSalary;
+        decimal proportionalAmount = Math.Round(salary * daysWorked / 360m, 2);
+
+        // Solo para mostrar en pantalla/reportes; el monto NO depende de este valor.
+        int workedMonths = (int)Math.Round(daysWorked / 30m, MidpointRounding.AwayFromZero);
+        if (workedMonths > 12) workedMonths = 12;
+
+        return (workedMonths, proportionalAmount);
     }
 
     private static AnnualBonusDto MapToDto(AnnualBonus ab, bool includeDetails)

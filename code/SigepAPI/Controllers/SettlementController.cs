@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SigepApplication.DTOs.Settlement;
 using SigepApplication.Interfaces;
+using SigepInfrastructure.Services;
 using System.Security.Claims;
 
 namespace SigepAPI.Controllers;
@@ -12,11 +13,13 @@ namespace SigepAPI.Controllers;
 public class SettlementController : ControllerBase
 {
     private readonly ISettlementService _settlementService;
+    private readonly SettlementPdfService _pdfService;
     private readonly ILogger<SettlementController> _logger;
 
-    public SettlementController(ISettlementService settlementService, ILogger<SettlementController> logger)
+    public SettlementController(ISettlementService settlementService, SettlementPdfService pdfService, ILogger<SettlementController> logger)
     {
         _settlementService = settlementService;
+        _pdfService = pdfService;
         _logger = logger;
     }
 
@@ -106,6 +109,27 @@ public class SettlementController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return Conflict(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Descarga el PDF de la liquidación</summary>
+    [HttpGet("{id}/pdf")]
+    public async Task<IActionResult> DownloadPdf(int id)
+    {
+        try
+        {
+            var settlement = await _settlementService.GetByIdAsync(id);
+            if (settlement == null)
+                return NotFound(new { message = "Liquidación no encontrada" });
+
+            var bytes = _pdfService.GenerateSettlementReport(settlement);
+            var filename = $"Liquidacion_{settlement.EmployeeName.Replace(" ", "_")}_{settlement.TerminationDate:yyyy-MM-dd}.pdf";
+            return File(bytes, "application/pdf", filename);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generando PDF de liquidación");
+            return StatusCode(500, new { message = ex.Message });
         }
     }
 }
