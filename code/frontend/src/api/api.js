@@ -1,22 +1,7 @@
-
-//  Este archivo es el TELÉFONO del frontend para hablar con el backend.
-//  Centraliza TODAS las llamadas al servidor en un solo lugar, organizadas por
-//  módulo (empleados, vacaciones, planilla, etc.). Así, las pantallas no tienen
-//  que saber direcciones ni detalles técnicos: solo dicen, por ejemplo,
-//  "employeeAPI.getAll()" y este archivo se encarga del resto.
-//
-//  Usa axios, que es una librería para hacer peticiones web. Lo más
-//  importante de este archivo son los dos interceptores de más abajo, que
-//  automatizan dos tareas repetitivas: adjuntar el token y manejar la sesión
-//  vencida.
-
 import axios from 'axios';
 
-// Dirección base del backend. Todas las llamadas cuelgan de aquí.
 const API_BASE_URL = 'http://localhost:5017/api/v1';
 
-// Creamos un cliente de axios ya configurado con la dirección base y el
-// tipo de contenido (JSON). Lo reutilizamos en todas las llamadas.
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -24,14 +9,11 @@ const apiClient = axios.create({
   },
 });
 
-//  INTERCEPTOR DE PETICIONES 
-//  Su trabajo es pegarle automáticamente el token a cada petición, para no
-//  tener que hacerlo a mano en cada pantalla. 
+// Add request interceptor to attach token
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
-      // "Bearer" es el formato para enviar el token en la cabecera.
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -41,10 +23,7 @@ apiClient.interceptors.request.use(
   }
 );
 
-//  INTERCEPTOR DE RESPUESTAS (lo que pasa DESPUÉS de recibir cada respuesta).
-//  Su trabajo es que si el servidor responde 401 (sesión vencida o token inválido),
-//  cerramos la sesión automáticamente y mandamos a la persona al login. Así
-//  no se queda en una pantalla "rota" sin saber qué pasó.
+// Add response interceptor to handle errors
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -57,17 +36,12 @@ apiClient.interceptors.response.use(
   }
 );
 
-//  A partir de aquí, cada grupo reúne las llamadas de un módulo del sistema.
-//  Cada función equivale a una operación del backend (traer, crear, aprobar…).
-
-// --- Autenticación: iniciar sesión y conocer al usuario actual ---
 export const authAPI = {
   login: (username, password) =>
     apiClient.post('/auth/login', { username, password }),
   getCurrentUser: () => apiClient.get('/auth/me'),
 };
 
-// --- Empleados: el expediente del personal, sus puestos y horarios ---
 export const employeeAPI = {
   getAll: () => apiClient.get('/employees'),
   getById: (id) => apiClient.get(`/employees/${id}`),
@@ -80,7 +54,6 @@ export const employeeAPI = {
   createSchedule: (data) => apiClient.post('/employees/schedules', data),
 };
 
-// --- Vacaciones: saldos, solicitudes y su aprobación/rechazo ---
 export const vacationAPI = {
   getMyBalance: (year) => apiClient.get(`/vacations/balance${year ? `?year=${year}` : ''}`),
   getBalanceHistory: () => apiClient.get('/vacations/balance/history'),
@@ -96,16 +69,9 @@ export const vacationAPI = {
   getRequestHistory: (id) => apiClient.get(`/vacations/requests/${id}/history`),
 };
 
-// --- Permisos: tipos de permiso, solicitudes y uso por persona ---
 export const permissionAPI = {
   getTypes: () => apiClient.get('/permissions/types'),
   getMyRequests: () => apiClient.get('/permissions/requests/my'),
-  getUsageSummary: () => apiClient.get('/permissions/usage'),
-  getPendingApproval: () => apiClient.get('/permissions/requests/pending'),
-  create: (data) => apiClient.post('/permissions/requests', data),
-  approve: (id, data) => apiClient.post(`/permissions/requests/${id}/approve`, data),
-  reject: (id, data) => apiClient.post(`/permissions/requests/${id}/reject`, data),
-  cancel: (id) => apiClient.post(`/permissions/requests/${id}/cancel`),
   getRequest: (id) => apiClient.get(`/permissions/requests/${id}`),
   getPendingRequests: () => apiClient.get('/permissions/requests/pending'),
   getAllRequests: (filters) => apiClient.get('/permissions/requests', { params: filters }),
@@ -116,7 +82,6 @@ export const permissionAPI = {
   getMyUsage: (year) => apiClient.get(`/permissions/usage${year ? `?year=${year}` : ''}`),
 };
 
-// --- Asistencia: marcas de entrada/salida y consulta de registros ---
 export const attendanceAPI = {
   getToday: () => apiClient.get('/attendance/today'),
   getMyRecords: (dateFrom, dateTo) =>
@@ -124,11 +89,10 @@ export const attendanceAPI = {
   getByEmployee: (employeeId, dateFrom, dateTo) =>
     apiClient.get(`/attendance/employee/${employeeId}`, { params: { dateFrom, dateTo } }),
   getAll: (filters) => apiClient.get('/attendance', { params: filters }),
-  checkIn: (data) => apiClient.post('/attendance/check-in', data ?? {}),
-  checkOut: (data) => apiClient.post('/attendance/check-out', data ?? {}),
+  checkIn: (notes) => apiClient.post('/attendance/check-in', { notes }),
+  checkOut: (notes) => apiClient.post('/attendance/check-out', { notes }),
 };
 
-// --- Horas extra: registros y su revisión (aprobar/rechazar) ---
 export const overtimeAPI = {
   getAll: (filters) => apiClient.get('/overtime', { params: filters }),
   getMy: (filters) => apiClient.get('/overtime/my', { params: filters }),
@@ -137,9 +101,10 @@ export const overtimeAPI = {
   getById: (id) => apiClient.get(`/overtime/${id}`),
   review: (id, approve, comments) =>
     apiClient.post(`/overtime/${id}/review`, { approve, comments }),
+  justify: (id, justification) =>
+    apiClient.post(`/overtime/${id}/justify`, { justification }),
 };
 
-// --- Planilla: generación, aprobación y anulación de pagos ---
 export const payrollAPI = {
   getAll: () => apiClient.get('/payroll'),
   getById: (id) => apiClient.get(`/payroll/${id}`),
@@ -150,7 +115,6 @@ export const payrollAPI = {
   getBenefitTypes: () => apiClient.get('/payroll/benefit-types'),
 };
 
-// --- Liquidaciones: cálculo de finiquito al terminar una relación laboral ---
 export const settlementAPI = {
   getAll: () => apiClient.get('/settlement'),
   getById: (id) => apiClient.get(`/settlement/${id}`),
@@ -160,7 +124,6 @@ export const settlementAPI = {
   markAsPaid: (id) => apiClient.post(`/settlement/${id}/pay`),
 };
 
-// --- Aguinaldo: cálculo del decimotercer mes por empleado/año ---
 export const annualBonusAPI = {
   getAll: () => apiClient.get('/annualbonus'),
   getById: (id) => apiClient.get(`/annualbonus/${id}`),
@@ -170,7 +133,6 @@ export const annualBonusAPI = {
   recalculate: (id) => apiClient.post(`/annualbonus/${id}/recalculate`),
 };
 
-// --- Evaluación de desempeño: crear, actualizar y dar por enterado ---
 export const evaluationAPI = {
   getAll: (filters) => apiClient.get('/performanceevaluation', { params: filters }),
   getMy: () => apiClient.get('/performanceevaluation/my'),
@@ -181,7 +143,6 @@ export const evaluationAPI = {
   acknowledge: (id) => apiClient.post(`/performanceevaluation/${id}/acknowledge`),
 };
 
-// --- Incapacidades: registro, documentos adjuntos y revisión ---
 export const disabilityAPI = {
   getAll: (filters) => apiClient.get('/disability', { params: filters }),
   getMy: () => apiClient.get('/disability/my'),
@@ -192,7 +153,6 @@ export const disabilityAPI = {
   review: (id, approve, comments) => apiClient.post(`/disability/${id}/review`, { approve, comments }),
 };
 
-// --- Reportes: estadísticas del dashboard y reportes específicos ---
 export const reportAPI = {
   getDashboardStats: () => apiClient.get('/report/dashboard'),
   getAttendanceReport: (filters) => apiClient.get('/report/attendance', { params: filters }),
@@ -200,7 +160,6 @@ export const reportAPI = {
   getPayrollReport: (payrollId) => apiClient.get(`/report/payroll/${payrollId}`),
 };
 
-// --- Notificaciones: avisos del sistema y su estado de lectura ---
 export const notificationAPI = {
   getNotifications: (unreadOnly = false) => apiClient.get(`/notifications?unreadOnly=${unreadOnly}`),
   getUnreadCount: () => apiClient.get('/notifications/unread-count'),
@@ -208,5 +167,4 @@ export const notificationAPI = {
   markAllAsRead: () => apiClient.post('/notifications/read-all'),
 };
 
-// Exportamos el cliente base por si alguna pantalla necesita usarlo directo.
-export default apiClient; 
+export default apiClient;

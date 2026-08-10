@@ -4,3 +4,43 @@
  */
 
 .overtime-container { max-width: 1200px; }
+
+/* Celda de justificación en tablas: recorta texto largo con elipsis, título muestra el texto completo */
+.justification-cell {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Caja de justificación del empleado dentro del modal de aprobar/rechazar */
+.justification-box {
+  background: var(--c-bg);
+  border-left: 3px solid var(--c-primary, #4b8c4a);
+  border-radius: var(--r);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.justification-box strong {
+  display: block;
+  margin-bottom: var(--sp-1);
+  font-size: var(--text-sm);
+}
+
+.justification-box p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--c-text-2);
+  white-space: pre-wrap;
+}
+
+.justification-box.justification-missing {
+  border-left-color: var(--c-warning);
+  background: var(--c-warning-bg);
+}
+
+.justification-box.justification-missing p {
+  color: var(--c-warning-text);
+  font-style: italic;
+}

@@ -8,6 +8,6 @@ public interface IOvertimeService
     Task<IEnumerable<OvertimeRecordDto>> GetByEmployeeAsync(int employeeId, OvertimeFilterDto? filter = null);
     Task<OvertimeRecordDto?> GetByIdAsync(int id);
     Task<OvertimeRecordDto> ReviewAsync(int id, int reviewerUserId, bool approve, string? comments = null);
-    Task DetectOvertimeFromAttendanceAsync(int attendanceId, string? reason = null);
-
+    Task<OvertimeRecordDto> JustifyAsync(int id, int employeeId, string justification);
+    Task DetectOvertimeFromAttendanceAsync(int attendanceId);
 }

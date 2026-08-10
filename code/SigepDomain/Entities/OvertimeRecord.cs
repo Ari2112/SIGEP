@@ -14,9 +14,10 @@ public class OvertimeRecord
     public decimal TotalAmount { get; set; }
     public OvertimeStatus Status { get; set; } = OvertimeStatus.Detectada;
     public OvertimeDetectionType DetectionType { get; set; } = OvertimeDetectionType.Automatica;
+    public string? Justification { get; set; }
+    public DateTime? JustifiedAt { get; set; }
     public int? ReviewedById { get; set; }
     public DateTime? ReviewedAt { get; set; }
-    public string? Reason { get; set; }
     public string? ReviewComments { get; set; }
     public int? PayrollDetailId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

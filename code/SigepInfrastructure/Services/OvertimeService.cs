@@ -106,6 +106,7 @@ public class OvertimeService : IOvertimeService
             newValues: new { Status = record.Status.ToString(), Comments = comments },
             description: $"Horas extra {(approve ? "aprobadas" : "rechazadas")}: {record.TotalHours}h del {record.Date:dd/MM/yyyy}");
 
+        // Notificar al empleado
         if (record.Employee?.User != null)
         {
             var statusText = approve ? "aprobadas" : "rechazadas";
@@ -122,7 +123,36 @@ public class OvertimeService : IOvertimeService
         return MapToDto(record);
     }
 
-public async Task DetectOvertimeFromAttendanceAsync(int attendanceId, string? reason = null)
+    public async Task<OvertimeRecordDto> JustifyAsync(int id, int employeeId, string justification)
+    {
+        var record = await _context.OvertimeRecords
+            .Include(o => o.Employee)
+            .Include(o => o.ReviewedBy)
+            .FirstOrDefaultAsync(o => o.Id == id);
+
+        if (record == null)
+            throw new ArgumentException("Registro de horas extra no encontrado");
+
+        if (record.EmployeeId != employeeId)
+            throw new UnauthorizedAccessException("No puede justificar horas extra de otro empleado");
+
+        if (record.Status != OvertimeStatus.Detectada && record.Status != OvertimeStatus.Pendiente)
+            throw new InvalidOperationException("Solo se puede justificar un registro que aún no ha sido revisado");
+
+        if (string.IsNullOrWhiteSpace(justification))
+            throw new ArgumentException("La justificación no puede estar vacía");
+
+        record.Justification = justification.Trim();
+        record.JustifiedAt = DateTime.UtcNow;
+        record.Status = OvertimeStatus.Pendiente;
+        record.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return MapToDto(record);
+    }
+
+    public async Task DetectOvertimeFromAttendanceAsync(int attendanceId)
     {
         var attendance = await _context.AttendanceRecords
             .Include(a => a.Employee)
@@ -136,93 +166,75 @@ public async Task DetectOvertimeFromAttendanceAsync(int attendanceId, string? re
         if (schedule == null)
             return;
 
+        // Calcular hora de fin de jornada normal
         var scheduledEndTime = attendance.Date.Add(schedule.EndTime);
         var actualCheckOut = attendance.CheckOutTime.Value;
 
+        // Si salió después de la hora de fin de jornada
         if (actualCheckOut > scheduledEndTime)
         {
             var overtimeStart = scheduledEndTime.TimeOfDay;
-            var overtimeEnd   = actualCheckOut.TimeOfDay;
+            var overtimeEnd = actualCheckOut.TimeOfDay;
             var overtimeHours = (decimal)(actualCheckOut - scheduledEndTime).TotalHours;
 
+            // Solo registrar si son al menos 30 minutos
             if (overtimeHours < 0.5m)
                 return;
 
+            // Verificar si ya existe registro para este día
             var existingOvertime = await _context.OvertimeRecords
                 .FirstOrDefaultAsync(o => o.AttendanceId == attendanceId);
 
             if (existingOvertime != null)
                 return;
 
-            var employee  = attendance.Employee!;
-            var hourlyRate = employee.BaseSalary / 240m;
-
-            // Determinar multiplicador según Art. 140 Código de Trabajo CR:
-            // Horas extra diurnas: 1.5x
-            // Horas extra nocturnas (7pm - 5am) o en feriado: 2.0x
-            bool isFeriado = await _context.PublicHolidays
-                .AnyAsync(h => h.Date.Date == attendance.Date.Date && h.IsActive);
-
-            bool isNocturna = overtimeStart >= new TimeSpan(19, 0, 0)
-                           || overtimeStart < new TimeSpan(5, 0, 0);
-
-            decimal multiplier = (isFeriado || isNocturna) ? 2.0m : 1.5m;
+            var employee = attendance.Employee!;
+            var hourlyRate = employee.BaseSalary / 240; // salario mensual / 240 horas
 
             var overtimeRecord = new OvertimeRecord
-{
-    EmployeeId     = attendance.EmployeeId,
-    AttendanceId   = attendanceId,
-    Date           = attendance.Date,
-    StartTime      = overtimeStart,
-    EndTime        = overtimeEnd,
-    TotalHours     = Math.Round(overtimeHours, 2),
-    HourlyRate     = Math.Round(hourlyRate, 2),
-    MultiplierRate = multiplier,
-    TotalAmount    = Math.Round(hourlyRate * multiplier * overtimeHours, 2),
-    Status         = OvertimeStatus.Detectada,
-    DetectionType  = OvertimeDetectionType.Automatica,
-    Reason         = reason,
-    CreatedAt      = DateTime.UtcNow
-};
+            {
+                EmployeeId = attendance.EmployeeId,
+                AttendanceId = attendanceId,
+                Date = attendance.Date,
+                StartTime = overtimeStart,
+                EndTime = overtimeEnd,
+                TotalHours = Math.Round(overtimeHours, 2),
+                HourlyRate = Math.Round(hourlyRate, 2),
+                MultiplierRate = 1.5m,
+                TotalAmount = Math.Round(hourlyRate * 1.5m * overtimeHours, 2),
+                Status = OvertimeStatus.Detectada,
+                DetectionType = OvertimeDetectionType.Automatica,
+                CreatedAt = DateTime.UtcNow
+            };
 
             _context.OvertimeRecords.Add(overtimeRecord);
             await _context.SaveChangesAsync();
         }
     }
 
-    /// <summary>
-    /// Determina el multiplicador de horas extra según Art. 140 Código de Trabajo CR.
-    /// Diurnas: 1.5x | Nocturnas (7pm-5am) o feriados: 2.0x
-    /// </summary>
-    private static decimal GetOvertimeMultiplier(TimeSpan startTime, bool isFeriado)
-    {
-        if (isFeriado) return 2.0m;
-        bool isNocturna = startTime >= new TimeSpan(19, 0, 0)
-                       || startTime < new TimeSpan(5, 0, 0);
-        return isNocturna ? 2.0m : 1.5m;
-    }
-
     private static OvertimeRecordDto MapToDto(OvertimeRecord o)
     {
         return new OvertimeRecordDto
         {
-            Id             = o.Id,
-            EmployeeId     = o.EmployeeId,
-            EmployeeName   = o.Employee?.FullName ?? string.Empty,
-            AttendanceId   = o.AttendanceId,
-            Date           = o.Date,
-            StartTime      = o.StartTime.ToString(@"hh\:mm"),
-            EndTime        = o.EndTime.ToString(@"hh\:mm"),
-            TotalHours     = o.TotalHours,
-            HourlyRate     = o.HourlyRate,
+            Id = o.Id,
+            EmployeeId = o.EmployeeId,
+            EmployeeName = o.Employee?.FullName ?? string.Empty,
+            AttendanceId = o.AttendanceId,
+            Date = o.Date,
+            StartTime = o.StartTime.ToString(@"hh\:mm"),
+            EndTime = o.EndTime.ToString(@"hh\:mm"),
+            TotalHours = o.TotalHours,
+            HourlyRate = o.HourlyRate,
             MultiplierRate = o.MultiplierRate,
-            TotalAmount    = o.TotalAmount,
-            Status         = o.Status.ToString(),
-            DetectionType  = o.DetectionType.ToString(),
+            TotalAmount = o.TotalAmount,
+            Status = o.Status.ToString(),
+            DetectionType = o.DetectionType.ToString(),
             ReviewedByName = o.ReviewedBy?.Username,
-            ReviewedAt     = o.ReviewedAt,
+            ReviewedAt = o.ReviewedAt,
             ReviewComments = o.ReviewComments,
-            CreatedAt      = o.CreatedAt
+            Justification = o.Justification,
+            JustifiedAt = o.JustifiedAt,
+            CreatedAt = o.CreatedAt
         };
     }
 }
