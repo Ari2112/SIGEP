@@ -315,7 +315,7 @@ function OvertimeHours() {
                   <tr><td colSpan="8" className="no-data">No tiene registros de horas extra</td></tr>
                 ) : (
                   myRecords.map(rec => {
-                    const canJustify = rec.status === 'Detectada' || rec.status === 'Pendiente';
+                    const canJustify = !rec.justification && (rec.status === 'Detectada' || rec.status === 'Pendiente');
                     return (
                       <tr key={rec.id}>
                         <td>{formatDate(rec.date)}</td>
@@ -327,7 +327,7 @@ function OvertimeHours() {
                         <td className="justification-cell">
                           {rec.justification
                             ? <span title={rec.justification}>{rec.justification}</span>
-                            : <span className="badge badge-warning">Pendiente</span>}
+                            : <span className="badge badge-warning">Falta justificar</span>}
                         </td>
                         <td>{rec.reviewComments || '-'}</td>
                         <td>
@@ -336,7 +336,7 @@ function OvertimeHours() {
                               className="btn btn-sm btn-secondary"
                               onClick={() => openJustifyModal(rec)}
                             >
-                              {rec.justification ? 'Editar' : 'Justificar'}
+                              Justificar
                             </button>
                           )}
                         </td>
@@ -505,5 +505,8 @@ function OvertimeHours() {
     </Layout>
   );
 }
+
+export default OvertimeHours;
+
 
 export default OvertimeHours;

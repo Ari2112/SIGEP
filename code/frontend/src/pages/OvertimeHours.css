@@ -1,11 +1,11 @@
-/* OvertimeHours — container only
+/* OvertimeHours - container only
  * Tabs, table (.table), table-wrapper (.table-card), filters-bar, no-data,
- * info-box, badges, buttons, modals, forms, alerts, loading → components.css
+ * info-box, badges, buttons, modals, forms, alerts, loading -> components.css
  */
 
 .overtime-container { max-width: 1200px; }
 
-/* Celda de justificación en tablas: recorta texto largo con elipsis, título muestra el texto completo */
+/* Celda de justificacion en tablas: recorta texto largo con elipsis, titulo muestra el texto completo */
 .justification-cell {
   max-width: 220px;
   overflow: hidden;
@@ -13,7 +13,7 @@
   white-space: nowrap;
 }
 
-/* Caja de justificación del empleado dentro del modal de aprobar/rechazar */
+/* Caja de justificacion del empleado dentro del modal de aprobar/rechazar */
 .justification-box {
   background: var(--c-bg);
   border-left: 3px solid var(--c-primary, #4b8c4a);

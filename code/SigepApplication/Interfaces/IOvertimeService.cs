@@ -9,5 +9,5 @@ public interface IOvertimeService
     Task<OvertimeRecordDto?> GetByIdAsync(int id);
     Task<OvertimeRecordDto> ReviewAsync(int id, int reviewerUserId, bool approve, string? comments = null);
     Task<OvertimeRecordDto> JustifyAsync(int id, int employeeId, string justification);
-    Task DetectOvertimeFromAttendanceAsync(int attendanceId);
+    Task DetectOvertimeFromAttendanceAsync(int attendanceId, string? justification = null);
 }

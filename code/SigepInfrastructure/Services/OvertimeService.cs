@@ -152,7 +152,7 @@ public class OvertimeService : IOvertimeService
         return MapToDto(record);
     }
 
-    public async Task DetectOvertimeFromAttendanceAsync(int attendanceId)
+    public async Task DetectOvertimeFromAttendanceAsync(int attendanceId, string? justification = null)
     {
         var attendance = await _context.AttendanceRecords
             .Include(a => a.Employee)
@@ -186,10 +186,22 @@ public class OvertimeService : IOvertimeService
                 .FirstOrDefaultAsync(o => o.AttendanceId == attendanceId);
 
             if (existingOvertime != null)
+            {
+                // Si ya existe pero aún no tiene justificación y ahora llegó una, la completamos
+                if (!string.IsNullOrWhiteSpace(justification) && string.IsNullOrWhiteSpace(existingOvertime.Justification))
+                {
+                    existingOvertime.Justification = justification.Trim();
+                    existingOvertime.JustifiedAt = DateTime.UtcNow;
+                    existingOvertime.Status = OvertimeStatus.Pendiente;
+                    existingOvertime.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
                 return;
+            }
 
             var employee = attendance.Employee!;
             var hourlyRate = employee.BaseSalary / 240; // salario mensual / 240 horas
+            var hasJustification = !string.IsNullOrWhiteSpace(justification);
 
             var overtimeRecord = new OvertimeRecord
             {
@@ -202,8 +214,10 @@ public class OvertimeService : IOvertimeService
                 HourlyRate = Math.Round(hourlyRate, 2),
                 MultiplierRate = 1.5m,
                 TotalAmount = Math.Round(hourlyRate * 1.5m * overtimeHours, 2),
-                Status = OvertimeStatus.Detectada,
+                Status = hasJustification ? OvertimeStatus.Pendiente : OvertimeStatus.Detectada,
                 DetectionType = OvertimeDetectionType.Automatica,
+                Justification = hasJustification ? justification!.Trim() : null,
+                JustifiedAt = hasJustification ? DateTime.UtcNow : null,
                 CreatedAt = DateTime.UtcNow
             };
 
