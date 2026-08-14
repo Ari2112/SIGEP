@@ -4,6 +4,59 @@ import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 import './Permissions.css';
 
+// Selector de hora con listas desplegables.
+// Se usa en lugar de <input type="time"> porque el selector nativo del navegador
+// queda recortado dentro de modales con scroll y es difícil de usar en móvil.
+// Guarda el valor en el mismo formato "HH:mm" que espera el backend.
+const TimeSelect = ({ value, onChange, required }) => {
+  // Se mantiene el estado de hora y minuto por separado. Es necesario porque
+  // el usuario elige una parte a la vez: si sólo se guardara el valor completo,
+  // la primera selección se perdería al no estar la otra mitad todavía.
+  const [hh, setHh] = useState('');
+  const [mm, setMm] = useState('');
+
+  // Sincroniza si el valor cambia desde afuera (ej. al limpiar el formulario)
+  useEffect(() => {
+    const [h = '', m = ''] = (value || '').split(':');
+    setHh(h);
+    setMm(m);
+  }, [value]);
+
+  const emit = (h, m) => {
+    setHh(h);
+    setMm(m);
+    // El valor sólo se envía al formulario cuando ambas partes están completas
+    onChange(h && m ? `${h}:${m}` : '');
+  };
+
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <select
+        value={hh}
+        onChange={(e) => emit(e.target.value, mm)}
+        required={required}
+        style={{ flex: 1 }}
+      >
+        <option value="">--</option>
+        {hours.map(h => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <span style={{ fontWeight: 600, color: '#888' }}>:</span>
+      <select
+        value={mm}
+        onChange={(e) => emit(hh, e.target.value)}
+        required={required}
+        style={{ flex: 1 }}
+      >
+        <option value="">--</option>
+        {minutes.map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+    </div>
+  );
+};
+
 const Permissions = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('my-requests');
@@ -83,6 +136,18 @@ const Permissions = () => {
     e.preventDefault();
     try {
       setError(null);
+
+      // Validación: en permisos por horas, la hora fin debe ser posterior a la de inicio
+      if (formData.isPartialDay) {
+        if (!formData.startTime || !formData.endTime) {
+          setError('Debe indicar la hora de inicio y la hora de fin');
+          return;
+        }
+        if (formData.endTime <= formData.startTime) {
+          setError('La hora de fin debe ser posterior a la hora de inicio');
+          return;
+        }
+      }
 
       const otroType = permissionTypes.find(t => t.name === 'Otro');
       const defaultTypeId = otroType ? otroType.id : 9;
@@ -354,19 +419,17 @@ const Permissions = () => {
                     <div className="time-inputs">
                       <div className="form-group">
                         <label>Hora Inicio *</label>
-                        <input
-                          type="time"
+                        <TimeSelect
                           value={formData.startTime}
-                          onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                          onChange={(v) => setFormData({ ...formData, startTime: v })}
                           required
                         />
                       </div>
                       <div className="form-group">
                         <label>Hora Fin *</label>
-                        <input
-                          type="time"
+                        <TimeSelect
                           value={formData.endTime}
-                          onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                          onChange={(v) => setFormData({ ...formData, endTime: v })}
                           required
                         />
                       </div>

@@ -29,7 +29,7 @@ function OvertimeHours() {
     status: ''
   });
 
-  const isManager = user?.role === 'Admin' || user?.role === 'RRHH';
+  const isManager = ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura'].includes(user?.role);
 
   useEffect(() => {
     loadData();

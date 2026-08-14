@@ -73,13 +73,13 @@ export const permissionAPI = {
   getTypes: () => apiClient.get('/permissions/types'),
   getMyRequests: () => apiClient.get('/permissions/requests/my'),
   getRequest: (id) => apiClient.get(`/permissions/requests/${id}`),
-  getPendingRequests: () => apiClient.get('/permissions/requests/pending'),
+  getPendingApproval: () => apiClient.get('/permissions/requests/pending'),
   getAllRequests: (filters) => apiClient.get('/permissions/requests', { params: filters }),
-  createRequest: (data) => apiClient.post('/permissions/requests', data),
-  approveRequest: (id, comments) => apiClient.post(`/permissions/requests/${id}/approve`, { comments }),
-  rejectRequest: (id, reason) => apiClient.post(`/permissions/requests/${id}/reject`, { reason }),
-  cancelRequest: (id, reason) => apiClient.post(`/permissions/requests/${id}/cancel`, { reason }),
-  getMyUsage: (year) => apiClient.get(`/permissions/usage${year ? `?year=${year}` : ''}`),
+  create: (data) => apiClient.post('/permissions/requests', data),
+  approve: (id, data) => apiClient.post(`/permissions/requests/${id}/approve`, data),
+  reject: (id, data) => apiClient.post(`/permissions/requests/${id}/reject`, data),
+  cancel: (id, reason) => apiClient.post(`/permissions/requests/${id}/cancel`, { reason }),
+  getUsageSummary: (year) => apiClient.get(`/permissions/usage${year ? `?year=${year}` : ''}`),
 };
 
 export const attendanceAPI = {
@@ -90,7 +90,7 @@ export const attendanceAPI = {
     apiClient.get(`/attendance/employee/${employeeId}`, { params: { dateFrom, dateTo } }),
   getAll: (filters) => apiClient.get('/attendance', { params: filters }),
   checkIn: (notes) => apiClient.post('/attendance/check-in', { notes }),
-  checkOut: (notes) => apiClient.post('/attendance/check-out', { notes }),
+  checkOut: (data) => apiClient.post('/attendance/check-out', data),
 };
 
 export const overtimeAPI = {
