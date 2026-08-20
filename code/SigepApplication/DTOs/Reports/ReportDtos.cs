@@ -13,6 +13,8 @@ public class AttendanceReportDto
     public int DisabilityDays { get; set; }
     public decimal TotalWorkedHours { get; set; }
     public decimal AttendanceRate { get; set; }
+    public int LateDays { get; set; }
+    public int TotalLateMinutes { get; set; }
 }
 
 public class OvertimeReportDto
@@ -45,6 +47,7 @@ public class PayrollSummaryReportDto
 
 public class PayrollDetailSummaryDto
 {
+    public int EmployeeId { get; set; }
     public string EmployeeName { get; set; } = string.Empty;
     public string? PositionName { get; set; }
     public decimal BaseSalary { get; set; }

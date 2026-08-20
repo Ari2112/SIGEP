@@ -92,3 +92,8 @@ public class CreateScheduleDto
     public TimeSpan EndTime { get; set; }
     public int WorkHoursPerDay { get; set; } = 8;
 }
+public class GeoItemDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}

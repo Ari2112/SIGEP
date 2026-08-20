@@ -1,17 +1,17 @@
 @echo off
 :: ============================================================
-:: SIGEP - Reset y Seed de Base de Datos Local
-:: SQL Server LocalDB (mssqllocaldb)
+:: SIGEP - Reset y Seed de Base de Datos
+:: SQL Server Express - Windows Authentication
 :: ============================================================
 
 title SIGEP - Reset DB
 
-set DB_SERVER=(localdb)\mssqllocaldb
+set DB_SERVER=LAPTOP-56772AJK\SQLEXPRESS
 set SQL_SCRIPT=%~dp0reset.sql
 
 echo.
 echo ============================================================
-echo  SIGEP - Reset completo de base de datos local
+echo  SIGEP - Reset completo de base de datos
 echo  Servidor: %DB_SERVER%
 echo  Script  : %SQL_SCRIPT%
 echo ============================================================
@@ -29,44 +29,37 @@ if /i "%CONFIRM%" neq "s" (
 )
 
 echo.
-echo [1/3] Verificando que LocalDB este corriendo...
-SqlLocalDB.exe start mssqllocaldb >nul 2>&1
-if %errorlevel% neq 0 (
-    echo      LocalDB ya esta corriendo o se inicio correctamente.
-) else (
-    echo      LocalDB iniciado.
-)
-
-echo [2/3] Ejecutando reset.sql (DROP + CREATE + Schema + Seed)...
-sqlcmd -S "%DB_SERVER%" -i "%SQL_SCRIPT%" -I -b
+echo [1/2] Ejecutando reset.sql (DROP + CREATE + Schema + Seed)...
+sqlcmd -S "%DB_SERVER%" -E -i "%SQL_SCRIPT%" -I -b
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Fallo la ejecucion del script SQL.
-    echo         Verifique que sqlcmd este instalado y en el PATH.
-    echo         Instalar con: winget install Microsoft.SqlServer.CommandLineUtils
+    echo.
+    echo  Posibles causas:
+    echo    - sqlcmd no esta instalado
+    echo      Instalar: winget install Microsoft.SqlServer.CommandLineUtils
+    echo    - El servicio SQLEXPRESS no esta corriendo
+    echo      Iniciar:  net start MSSQL$SQLEXPRESS
+    echo    - El servidor no coincide. Verifique en SSMS el nombre exacto.
     echo.
     pause
     exit /b 1
 )
 
-echo [3/3] Verificando tablas creadas...
-sqlcmd -S "%DB_SERVER%" -d SigepDB -Q "SELECT COUNT(*) AS TotalTablas FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE'" -b
-if %errorlevel% neq 0 (
-    echo [ERROR] No se pudo verificar la base de datos.
-    pause
-    exit /b 1
-)
+echo.
+echo [2/2] Verificando tablas creadas...
+sqlcmd -S "%DB_SERVER%" -E -d SigepDB -Q "SELECT COUNT(*) AS TotalTablas FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE'" -b
 
 echo.
 echo ============================================================
 echo  Base de datos SigepDB lista.
 echo.
 echo  Usuarios de prueba (password: admin123):
-echo    admin        - Administrador
-echo    rrhh         - Recursos Humanos
-echo    supervisor   - Jefatura
-echo    juan.perez   - Empleado
-echo    ana.rodriguez- Empleado
+echo    admin           - Administrador
+echo    rrhh            - Recursos Humanos
+echo    supervisor      - Jefatura
+echo    juan.perez      - Empleado
+echo    ana.rodriguez   - Empleado
 echo    carlos.martinez - Empleado
 echo ============================================================
 echo.

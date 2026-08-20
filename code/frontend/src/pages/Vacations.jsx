@@ -1,64 +1,56 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { vacationAPI } from '../api/api';
-import { USE_MOCK, getVacationBalance, getMyVacationRequests, getPendingVacationRequests, mockVacationRequests } from '../api/mockData';
 import Layout from '../components/Layout';
 import './Vacations.css';
 
 function Vacations() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('my-requests');
-  const [balance, setBalance] = useState(null);
-  const [myRequests, setMyRequests] = useState([]);
+
+  // Datos
+  const [balance, setBalance]               = useState(null);
+  const [myRequests, setMyRequests]         = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showNewRequestModal, setShowNewRequestModal] = useState(false);
-  const [showApproveModal, setShowApproveModal] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [newRequest, setNewRequest] = useState({
-    startDate: '',
-    endDate: '',
-    reason: ''
-  });
-  const [rejectReason, setRejectReason] = useState('');
+
+  // UI
+  const [activeTab, setActiveTab]           = useState('my-requests');
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState('');
+  const [successMsg, setSuccessMsg]         = useState('');
+
+  // Modales
+  const [showNewModal, setShowNewModal]     = useState(false);
+  const [showApproveModal, setShowApprove]  = useState(false);
+  const [showRejectModal, setShowReject]    = useState(false);
+  const [selectedRequest, setSelected]      = useState(null);
+
+  // Formularios
+  const [newRequest, setNewRequest]         = useState({ startDate: '', endDate: '', reason: '' });
   const [approveComments, setApproveComments] = useState('');
+  const [rejectReason, setRejectReason]     = useState('');
+  const [submitting, setSubmitting]         = useState(false);
 
-  const isManager = user?.role === 'Admin' || user?.role === 'RRHH' || user?.role === 'Jefatura';
+  const isManager = ['Admin', 'Administrador', 'RRHH', 'Jefatura'].includes(user?.role);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // ── Carga inicial ──────────────────────────────────────────────────
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // ============ MOCK DATA - REMOVER EN PRODUCCIÓN ============
-      if (USE_MOCK) {
-        setBalance(getVacationBalance(user?.employeeId || 4));
-        setMyRequests(getMyVacationRequests(user?.employeeId || 4));
-        if (isManager) {
-          setPendingRequests(getPendingVacationRequests());
-        }
-        setLoading(false);
-        return;
-      }
-      // ============ FIN MOCK DATA ============
-
-      const [balanceRes, requestsRes] = await Promise.all([
+      const [balRes, reqRes] = await Promise.all([
         vacationAPI.getMyBalance(),
         vacationAPI.getMyRequests()
       ]);
 
-      setBalance(balanceRes.data);
-      setMyRequests(requestsRes.data);
+      setBalance(balRes.data);
+      setMyRequests(reqRes.data);
 
       if (isManager) {
-        const pendingRes = await vacationAPI.getPendingRequests();
-        setPendingRequests(pendingRes.data);
+        const pendRes = await vacationAPI.getPendingRequests();
+        setPendingRequests(pendRes.data);
       }
     } catch (err) {
       setError('Error al cargar datos: ' + (err.response?.data?.message || err.message));
@@ -67,219 +59,190 @@ function Vacations() {
     }
   };
 
-  const handleCreateRequest = async (e) => {
+  // ── Helpers ────────────────────────────────────────────────────────
+  const showSuccess = (msg) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(''), 4000);
+  };
+
+  // El backend devuelve requestStatusName (no status)
+  const getStatus = (req) => req.requestStatusName || req.status || '';
+
+  const getStatusBadge = (statusName) => {
+    const map = {
+      'Pendiente':   'badge-warning',
+      'Aprobada':    'badge-success',
+      'Rechazada':   'badge-danger',
+      'Cancelada':   'badge-secondary',
+      'En Revision': 'badge-info',
+      'En Revisión': 'badge-info',
+    };
+    return <span className={`badge ${map[statusName] || 'badge-secondary'}`}>{statusName}</span>;
+  };
+
+  const fmt = (dateStr) =>
+    new Date(dateStr).toLocaleDateString('es-CR', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+
+  const calcDays = (start, end) => {
+    if (!start || !end) return 0;
+    const diff = new Date(end) - new Date(start);
+    return Math.max(1, Math.round(diff / 86400000) + 1);
+  };
+
+  // ── Acciones ───────────────────────────────────────────────────────
+  const handleCreate = async (e) => {
     e.preventDefault();
-    
-    // ============ MOCK - REMOVER EN PRODUCCIÓN ============
-    if (USE_MOCK) {
-      const start = new Date(newRequest.startDate);
-      const end = new Date(newRequest.endDate);
-      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      
-      mockVacationRequests.push({
-        id: mockVacationRequests.length + 1,
-        employeeId: user?.employeeId || 4,
-        employeeName: user?.fullName || 'Usuario',
+    if (!newRequest.startDate || !newRequest.endDate) return;
+    try {
+      setSubmitting(true);
+      await vacationAPI.createRequest({
+        employeeId: 0,           // el backend usa el EmployeeId del token
         startDate: newRequest.startDate,
         endDate: newRequest.endDate,
-        requestedDays: days,
-        reason: newRequest.reason,
-        status: 'Pendiente',
-        createdAt: new Date().toISOString().split('T')[0]
+        reason: newRequest.reason
       });
-      setShowNewRequestModal(false);
+      setShowNewModal(false);
       setNewRequest({ startDate: '', endDate: '', reason: '' });
-      loadData();
-      return;
-    }
-    // ============ FIN MOCK ============
-
-    try {
-      await vacationAPI.createRequest(newRequest);
-      setShowNewRequestModal(false);
-      setNewRequest({ startDate: '', endDate: '', reason: '' });
+      showSuccess('Solicitud enviada correctamente');
       loadData();
     } catch (err) {
-      alert('Error al crear solicitud: ' + (err.response?.data?.message || err.message));
+      setError('Error al crear solicitud: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleApprove = async () => {
-    // ============ MOCK - REMOVER EN PRODUCCIÓN ============
-    if (USE_MOCK) {
-      const req = mockVacationRequests.find(r => r.id === selectedRequest.id);
-      if (req) {
-        req.status = 'Aprobada';
-        req.approvedAt = new Date().toISOString();
-        req.approverComments = approveComments;
-      }
-      setShowApproveModal(false);
-      setApproveComments('');
-      setSelectedRequest(null);
-      loadData();
-      return;
-    }
-    // ============ FIN MOCK ============
-
     try {
+      setSubmitting(true);
       await vacationAPI.approveRequest(selectedRequest.id, approveComments);
-      setShowApproveModal(false);
+      setShowApprove(false);
       setApproveComments('');
-      setSelectedRequest(null);
+      setSelected(null);
+      showSuccess('Solicitud aprobada. El saldo fue descontado automáticamente.');
       loadData();
     } catch (err) {
-      alert('Error al aprobar: ' + (err.response?.data?.message || err.message));
+      setError('Error al aprobar: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleReject = async () => {
     if (!rejectReason.trim()) {
-      alert('Debe proporcionar un motivo de rechazo');
+      setError('Debe proporcionar un motivo de rechazo');
       return;
     }
-    
-    // ============ MOCK - REMOVER EN PRODUCCIÓN ============
-    if (USE_MOCK) {
-      const req = mockVacationRequests.find(r => r.id === selectedRequest.id);
-      if (req) {
-        req.status = 'Rechazada';
-        req.approverComments = rejectReason;
-      }
-      setShowRejectModal(false);
-      setRejectReason('');
-      setSelectedRequest(null);
-      loadData();
-      return;
-    }
-    // ============ FIN MOCK ============
-
     try {
+      setSubmitting(true);
       await vacationAPI.rejectRequest(selectedRequest.id, rejectReason);
-      setShowRejectModal(false);
+      setShowReject(false);
       setRejectReason('');
-      setSelectedRequest(null);
+      setSelected(null);
+      showSuccess('Solicitud rechazada');
       loadData();
     } catch (err) {
-      alert('Error al rechazar: ' + (err.response?.data?.message || err.message));
+      setError('Error al rechazar: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleCancel = async (request) => {
-    if (window.confirm('¿Está seguro de cancelar esta solicitud?')) {
-      // ============ MOCK - REMOVER EN PRODUCCIÓN ============
-      if (USE_MOCK) {
-        const req = mockVacationRequests.find(r => r.id === request.id);
-        if (req) req.status = 'Cancelada';
-        loadData();
-        return;
-      }
-      // ============ FIN MOCK ============
-
-      try {
-        await vacationAPI.cancelRequest(request.id);
-        loadData();
-      } catch (err) {
-        alert('Error al cancelar: ' + (err.response?.data?.message || err.message));
-      }
+  const handleCancel = async (req) => {
+    if (!window.confirm('¿Está seguro de cancelar esta solicitud?')) return;
+    try {
+      await vacationAPI.cancelRequest(req.id, 'Cancelada por el empleado');
+      showSuccess('Solicitud cancelada');
+      loadData();
+    } catch (err) {
+      setError('Error al cancelar: ' + (err.response?.data?.message || err.message));
     }
   };
 
-  const getStatusBadge = (status) => {
-    const statusMap = {
-      'Pendiente': 'badge-warning',
-      'Aprobada': 'badge-success',
-      'Rechazada': 'badge-danger',
-      'Cancelada': 'badge-secondary',
-      'EnRevision': 'badge-info'
-    };
-    return <span className={`badge ${statusMap[status] || 'badge-secondary'}`}>{status}</span>;
-  };
-
-  const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString('es-CR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
+  // ── Render ─────────────────────────────────────────────────────────
   if (loading) {
-    return (
-      <Layout>
-        <div className="loading">Cargando...</div>
-      </Layout>
-    );
+    return <Layout><div className="loading">Cargando...</div></Layout>;
   }
 
   return (
     <Layout>
       <div className="vacations-container">
+
+        {/* Encabezado */}
         <div className="page-header">
-          <h1>Gestión de Vacaciones</h1>
-          <button 
-            className="btn btn-primary"
-            onClick={() => setShowNewRequestModal(true)}
-          >
-            Nueva Solicitud
+          <div>
+            <h1>Gestión de Vacaciones</h1>
+            <p className="page-subtitle">Solicitudes y saldo de días disponibles</p>
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowNewModal(true)}>
+            + Nueva Solicitud
           </button>
         </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        {error      && <div className="alert alert-error"   onClick={() => setError('')}>{error}</div>}
+        {successMsg && <div className="alert alert-success">{successMsg}</div>}
 
-        {/* Balance Card */}
+        {/* ── Tarjeta de saldo ── */}
         {balance && (
           <div className="balance-card">
             <h3>Mi Saldo de Vacaciones {balance.year}</h3>
             <div className="balance-stats">
               <div className="stat">
                 <span className="stat-value">{balance.totalDays}</span>
-                <span className="stat-label">Total</span>
+                <span className="stat-label">Total del período</span>
               </div>
+              {balance.carriedOverDays > 0 && (
+                <div className="stat">
+                  <span className="stat-value">{balance.carriedOverDays}</span>
+                  <span className="stat-label">Acarreados del año anterior</span>
+                </div>
+              )}
               <div className="stat">
                 <span className="stat-value">{balance.usedDays}</span>
-                <span className="stat-label">Usados</span>
+                <span className="stat-label">Utilizados</span>
               </div>
               <div className="stat">
                 <span className="stat-value">{balance.pendingDays}</span>
-                <span className="stat-label">Pendientes</span>
+                <span className="stat-label">Pendientes de aprobación</span>
               </div>
               <div className="stat stat-highlight">
                 <span className="stat-value">{balance.availableDays}</span>
                 <span className="stat-label">Disponibles</span>
               </div>
-              {balance.carriedOverDays > 0 && (
-                <div className="stat">
-                  <span className="stat-value">{balance.carriedOverDays}</span>
-                  <span className="stat-label">Acarreados</span>
-                </div>
-              )}
             </div>
           </div>
         )}
 
-        {/* Tabs */}
+        {/* ── Tabs ── */}
         <div className="tabs">
-          <button 
+          <button
             className={`tab ${activeTab === 'my-requests' ? 'active' : ''}`}
             onClick={() => setActiveTab('my-requests')}
           >
             Mis Solicitudes ({myRequests.length})
           </button>
           {isManager && (
-            <button 
+            <button
               className={`tab ${activeTab === 'pending' ? 'active' : ''}`}
               onClick={() => setActiveTab('pending')}
             >
-              Pendientes de Aprobar ({pendingRequests.length})
+              Pendientes de Aprobar
+              {pendingRequests.length > 0 && (
+                <span className="badge badge-warning" style={{ marginLeft: 6 }}>
+                  {pendingRequests.length}
+                </span>
+              )}
             </button>
           )}
         </div>
 
-        {/* Tab Content */}
+        {/* ── Mis solicitudes ── */}
         {activeTab === 'my-requests' && (
           <div className="table-card">
             {myRequests.length === 0 ? (
-              <p className="no-data">No tiene solicitudes de vacaciones</p>
+              <p className="no-data">No tiene solicitudes de vacaciones registradas</p>
             ) : (
               <table className="table">
                 <thead>
@@ -289,20 +252,24 @@ function Vacations() {
                     <th>Días</th>
                     <th>Motivo</th>
                     <th>Estado</th>
+                    <th>Comentario del aprobador</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {myRequests.map(req => (
                     <tr key={req.id}>
-                      <td>{formatDate(req.startDate)}</td>
-                      <td>{formatDate(req.endDate)}</td>
-                      <td>{req.requestedDays}</td>
+                      <td>{fmt(req.startDate)}</td>
+                      <td>{fmt(req.endDate)}</td>
+                      <td><strong>{req.requestedDays}</strong></td>
                       <td>{req.reason || '-'}</td>
-                      <td>{getStatusBadge(req.status)}</td>
+                      <td>{getStatusBadge(getStatus(req))}</td>
+                      <td style={{ fontSize: '0.85rem', color: '#555' }}>
+                        {req.approverComments || '-'}
+                      </td>
                       <td>
-                        {req.status === 'Pendiente' && (
-                          <button 
+                        {getStatus(req) === 'Pendiente' && (
+                          <button
                             className="btn btn-sm btn-danger"
                             onClick={() => handleCancel(req)}
                           >
@@ -318,10 +285,11 @@ function Vacations() {
           </div>
         )}
 
+        {/* ── Pendientes de aprobar (managers) ── */}
         {activeTab === 'pending' && isManager && (
           <div className="table-card">
             {pendingRequests.length === 0 ? (
-              <p className="no-data">No hay solicitudes pendientes de aprobar</p>
+              <p className="no-data">No hay solicitudes pendientes de aprobación</p>
             ) : (
               <table className="table">
                 <thead>
@@ -338,28 +306,22 @@ function Vacations() {
                 <tbody>
                   {pendingRequests.map(req => (
                     <tr key={req.id}>
-                      <td>{req.employeeName}</td>
-                      <td>{formatDate(req.startDate)}</td>
-                      <td>{formatDate(req.endDate)}</td>
-                      <td>{req.requestedDays}</td>
+                      <td><strong>{req.employeeName}</strong></td>
+                      <td>{fmt(req.startDate)}</td>
+                      <td>{fmt(req.endDate)}</td>
+                      <td><strong>{req.requestedDays}</strong></td>
                       <td>{req.reason || '-'}</td>
-                      <td>{getStatusBadge(req.status)}</td>
-                      <td>
-                        <button 
+                      <td>{getStatusBadge(getStatus(req))}</td>
+                      <td style={{ display: 'flex', gap: 6 }}>
+                        <button
                           className="btn btn-sm btn-success"
-                          onClick={() => {
-                            setSelectedRequest(req);
-                            setShowApproveModal(true);
-                          }}
+                          onClick={() => { setSelected(req); setShowApprove(true); }}
                         >
                           Aprobar
                         </button>
-                        <button 
+                        <button
                           className="btn btn-sm btn-danger"
-                          onClick={() => {
-                            setSelectedRequest(req);
-                            setShowRejectModal(true);
-                          }}
+                          onClick={() => { setSelected(req); setShowReject(true); }}
                         >
                           Rechazar
                         </button>
@@ -372,49 +334,74 @@ function Vacations() {
           </div>
         )}
 
-        {/* New Request Modal */}
-        {showNewRequestModal && (
-          <div className="modal-overlay" onClick={() => setShowNewRequestModal(false)}>
+        {/* ══════════ MODALES ══════════ */}
+
+        {/* Nueva solicitud */}
+        {showNewModal && (
+          <div className="modal-overlay" onClick={() => setShowNewModal(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Nueva Solicitud de Vacaciones</h2>
-                <button className="close-btn" onClick={() => setShowNewRequestModal(false)}>&times;</button>
+                <button className="close-btn" onClick={() => setShowNewModal(false)}>&times;</button>
               </div>
-              <form onSubmit={handleCreateRequest}>
+
+              {balance && (
+                <div style={{
+                  background: '#f0faf0', border: '1px solid #2d5a1b',
+                  borderRadius: 8, padding: '10px 14px', marginBottom: 16,
+                  fontSize: '0.9rem'
+                }}>
+                  <strong>Días disponibles: {balance.availableDays}</strong>
+                  {balance.carriedOverDays > 0 && (
+                    <span style={{ marginLeft: 12, color: '#555' }}>
+                      (incluye {balance.carriedOverDays} acarreados)
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleCreate}>
                 <div className="form-group">
-                  <label>Fecha de Inicio</label>
+                  <label>Fecha de Inicio *</label>
                   <input
                     type="date"
                     value={newRequest.startDate}
-                    onChange={e => setNewRequest({...newRequest, startDate: e.target.value})}
                     min={new Date().toISOString().split('T')[0]}
+                    onChange={e => setNewRequest({ ...newRequest, startDate: e.target.value })}
                     required
                   />
                 </div>
                 <div className="form-group">
-                  <label>Fecha de Fin</label>
+                  <label>Fecha de Fin *</label>
                   <input
                     type="date"
                     value={newRequest.endDate}
-                    onChange={e => setNewRequest({...newRequest, endDate: e.target.value})}
                     min={newRequest.startDate || new Date().toISOString().split('T')[0]}
+                    onChange={e => setNewRequest({ ...newRequest, endDate: e.target.value })}
                     required
                   />
                 </div>
+                {newRequest.startDate && newRequest.endDate && (
+                  <p style={{ fontSize: '0.88rem', color: '#2d5a1b', marginBottom: 12 }}>
+                    Se solicitarán aproximadamente <strong>{calcDays(newRequest.startDate, newRequest.endDate)} días</strong>
+                  </p>
+                )}
                 <div className="form-group">
                   <label>Motivo (opcional)</label>
                   <textarea
                     value={newRequest.reason}
-                    onChange={e => setNewRequest({...newRequest, reason: e.target.value})}
-                    rows="3"
+                    onChange={e => setNewRequest({ ...newRequest, reason: e.target.value })}
+                    rows={3}
+                    placeholder="Describa el motivo de su solicitud..."
                   />
                 </div>
                 <div className="modal-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowNewRequestModal(false)}>
+                  <button type="button" className="btn btn-secondary"
+                    onClick={() => setShowNewModal(false)}>
                     Cancelar
                   </button>
-                  <button type="submit" className="btn btn-primary">
-                    Enviar Solicitud
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting ? 'Enviando...' : 'Enviar Solicitud'}
                   </button>
                 </div>
               </form>
@@ -422,65 +409,82 @@ function Vacations() {
           </div>
         )}
 
-        {/* Approve Modal */}
+        {/* Aprobar */}
         {showApproveModal && selectedRequest && (
-          <div className="modal-overlay" onClick={() => setShowApproveModal(false)}>
+          <div className="modal-overlay" onClick={() => setShowApprove(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Aprobar Solicitud</h2>
-                <button className="close-btn" onClick={() => setShowApproveModal(false)}>&times;</button>
+                <button className="close-btn" onClick={() => setShowApprove(false)}>&times;</button>
               </div>
-              <p>¿Aprobar solicitud de <strong>{selectedRequest.employeeName}</strong>?</p>
-              <p>{formatDate(selectedRequest.startDate)} - {formatDate(selectedRequest.endDate)} ({selectedRequest.requestedDays} días)</p>
+              <p>
+                ¿Aprobar solicitud de <strong>{selectedRequest.employeeName}</strong>?
+              </p>
+              <p style={{ color: '#555', fontSize: '0.9rem' }}>
+                {fmt(selectedRequest.startDate)} — {fmt(selectedRequest.endDate)}&nbsp;
+                (<strong>{selectedRequest.requestedDays} días</strong>)
+              </p>
+              <p style={{ fontSize: '0.85rem', color: '#c0392b' }}>
+                Al aprobar, los días serán descontados automáticamente del saldo del empleado.
+              </p>
               <div className="form-group">
                 <label>Comentarios (opcional)</label>
                 <textarea
                   value={approveComments}
                   onChange={e => setApproveComments(e.target.value)}
-                  rows="2"
+                  rows={2}
+                  placeholder="Comentarios para el empleado..."
                 />
               </div>
               <div className="modal-actions">
-                <button className="btn btn-secondary" onClick={() => setShowApproveModal(false)}>
+                <button className="btn btn-secondary" onClick={() => setShowApprove(false)}>
                   Cancelar
                 </button>
-                <button className="btn btn-success" onClick={handleApprove}>
-                  Aprobar
+                <button className="btn btn-success" onClick={handleApprove} disabled={submitting}>
+                  {submitting ? 'Aprobando...' : 'Confirmar Aprobación'}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Reject Modal */}
+        {/* Rechazar */}
         {showRejectModal && selectedRequest && (
-          <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
+          <div className="modal-overlay" onClick={() => setShowReject(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Rechazar Solicitud</h2>
-                <button className="close-btn" onClick={() => setShowRejectModal(false)}>&times;</button>
+                <button className="close-btn" onClick={() => setShowReject(false)}>&times;</button>
               </div>
-              <p>¿Rechazar solicitud de <strong>{selectedRequest.employeeName}</strong>?</p>
+              <p>
+                ¿Rechazar solicitud de <strong>{selectedRequest.employeeName}</strong>?
+              </p>
+              <p style={{ color: '#555', fontSize: '0.9rem' }}>
+                {fmt(selectedRequest.startDate)} — {fmt(selectedRequest.endDate)}&nbsp;
+                (<strong>{selectedRequest.requestedDays} días</strong>)
+              </p>
               <div className="form-group">
                 <label>Motivo del Rechazo *</label>
                 <textarea
                   value={rejectReason}
                   onChange={e => setRejectReason(e.target.value)}
-                  rows="3"
+                  rows={3}
                   required
+                  placeholder="Indique el motivo del rechazo..."
                 />
               </div>
               <div className="modal-actions">
-                <button className="btn btn-secondary" onClick={() => setShowRejectModal(false)}>
+                <button className="btn btn-secondary" onClick={() => setShowReject(false)}>
                   Cancelar
                 </button>
-                <button className="btn btn-danger" onClick={handleReject}>
-                  Rechazar
+                <button className="btn btn-danger" onClick={handleReject} disabled={submitting}>
+                  {submitting ? 'Rechazando...' : 'Confirmar Rechazo'}
                 </button>
               </div>
             </div>
           </div>
         )}
+
       </div>
     </Layout>
   );

@@ -52,10 +52,12 @@ SET IDENTITY_INSERT PermissionTypes OFF;
 SET IDENTITY_INSERT DeductionTypes ON;
 INSERT INTO DeductionTypes (Id, Name, Description, IsPercentage, DefaultValue, IsActive)
 VALUES 
-    (1, 'CCSS Trabajador', 'Cuota obrero CCSS', 1, 0.1067, 1),
-    (2, 'Impuesto Renta', 'Impuesto sobre la renta', 1, 0.00, 1),
-    (3, 'Embargo Judicial', 'Embargo por orden judicial', 0, 0.00, 1),
-    (4, 'Préstamo Empresa', 'Préstamo otorgado por la empresa', 0, 0.00, 1),
+    (1, 'CCSS - SEM (Obrero)',    'Seguro Enfermedad y Maternidad - cuota obrera 5.5%', 1, 0.0550, 1),
+(2, 'CCSS - IVM (Obrero)',    'Invalidez, Vejez y Muerte - cuota obrera 4.0%',      1, 0.0400, 1),
+(3, 'Banco Popular (Obrero)', 'Aporte obrero Banco Popular 1.0%',                   1, 0.0100, 1),
+(4, 'Impuesto Renta',         'Impuesto sobre la renta - tramos progresivos CR',    1, 0.0000, 1),
+(5, 'Embargo Judicial',       'Embargo por orden judicial',                         0, 0.0000, 1),
+(6, 'Prestamo Empresa',       'Prestamo otorgado por la empresa',                   0, 0.0000, 1),
     (5, 'Asociación Solidarista', 'Aporte a asociación solidarista', 1, 0.05, 1),
     (6, 'Pensión Alimenticia', 'Pensión alimenticia', 0, 0.00, 1),
     (7, 'Adelanto Salario', 'Adelanto de salario', 0, 0.00, 1);
@@ -181,14 +183,3 @@ VALUES
     ('BONUS_PERIOD_START_DAY', '1', 'Día inicio periodo aguinaldo', 'int', 'BONUS', 1),
     ('COMPANY_NAME', 'Alquileres Segura', 'Nombre de la empresa', 'string', 'GENERAL', 1),
     ('COMPANY_ID', '3-101-123456', 'Cédula jurídica', 'string', 'GENERAL', 1);
-
-PRINT 'Seed completado exitosamente';
-PRINT '==============================';
-PRINT 'Usuarios de prueba:';
-PRINT '  admin / admin123 (Administrador)';
-PRINT '  rrhh / admin123 (RRHH)';
-PRINT '  supervisor / admin123 (Jefatura)';
-PRINT '  juan.perez / admin123 (Empleado)';
-PRINT '  ana.rodriguez / admin123 (Empleado)';
-PRINT '  carlos.martinez / admin123 (Empleado)';
-PRINT '==============================';

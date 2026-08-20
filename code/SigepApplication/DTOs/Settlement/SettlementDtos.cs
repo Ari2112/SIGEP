@@ -15,8 +15,9 @@ public class SettlementDto
     public int WorkedDays { get; set; }
     public decimal PendingVacationDays { get; set; }
     public decimal VacationAmount { get; set; }
-    public decimal ProportionalBonus { get; set; }
-    public decimal SeveranceAmount { get; set; }
+   public decimal ProportionalBonus { get; set; }
+public decimal NoticeAmount { get; set; }
+public decimal SeveranceAmount { get; set; }
     public decimal OtherBenefits { get; set; }
     public decimal TotalDeductions { get; set; }
     public decimal GrossTotal { get; set; }

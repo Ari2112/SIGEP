@@ -8,21 +8,16 @@ public class AttendanceRecord
     public DateTime? CheckInTime { get; set; }
     public DateTime? CheckOutTime { get; set; }
     public decimal? WorkedHours { get; set; }
-    public AttendanceStatus Status { get; set; } = AttendanceStatus.Parcial;
+    public int AttendanceStatusId { get; set; } = 1;
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    // Tardía
+    public bool IsLate { get; set; } = false;
+    public int LateMinutes { get; set; } = 0;
+
     // Navegación
     public Employee? Employee { get; set; }
+    public AttendanceStatus? AttendanceStatus { get; set; }
     public ICollection<OvertimeRecord> OvertimeRecords { get; set; } = new List<OvertimeRecord>();
-}
-
-public enum AttendanceStatus
-{
-    Parcial = 1,
-    Completo = 2,
-    Ausente = 3,
-    Permiso = 4,
-    Vacaciones = 5,
-    Incapacidad = 6
 }

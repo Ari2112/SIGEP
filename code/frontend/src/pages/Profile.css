@@ -1,5 +1,3 @@
-.profile-page {}
-
 .profile-grid {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -130,6 +128,30 @@
 .profile-note {
   margin-top: var(--sp-5);
   font-size: var(--text-sm);
+}
+
+/* Password change card */
+.profile-password-card {
+  grid-column: 1 / -1;
+}
+
+.profile-password-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  max-width: 360px;
+}
+
+.profile-password-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.profile-password-form label {
+  font-size: var(--text-sm);
+  color: var(--c-text-3);
+  font-weight: var(--fw-medium);
 }
 
 @media (max-width: 640px) {

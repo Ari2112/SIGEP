@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { authAPI } from '../api/api';
 import Layout from '../components/Layout';
 import './Profile.css';
 
@@ -61,6 +62,46 @@ const Profile = () => {
     { label: 'Rol', value: roleLabel },
     { label: 'ID de empleado', value: user?.employeeId || '—' },
   ];
+
+  // --- Cambio de contraseña ---
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState('');
+  const [pwdSaving, setPwdSaving] = useState(false);
+
+  const handlePwdChange = (field) => (e) => {
+    setPwdForm({ ...pwdForm, [field]: e.target.value });
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwdError('');
+    setPwdSuccess('');
+
+    if (!pwdForm.currentPassword || !pwdForm.newPassword || !pwdForm.confirmPassword) {
+      setPwdError('Completa los tres campos.');
+      return;
+    }
+    if (pwdForm.newPassword.length < 6) {
+      setPwdError('La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+      setPwdError('La confirmación no coincide con la nueva contraseña.');
+      return;
+    }
+
+    try {
+      setPwdSaving(true);
+      await authAPI.changePassword(pwdForm.currentPassword, pwdForm.newPassword);
+      setPwdSuccess('Contraseña actualizada correctamente.');
+      setPwdForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      setPwdError(err.response?.data?.message || 'No se pudo cambiar la contraseña.');
+    } finally {
+      setPwdSaving(false);
+    }
+  };
 
   return (
     <Layout>
@@ -135,8 +176,49 @@ const Profile = () => {
             </div>
 
             <div className="profile-note info-box">
-              <strong>Nota:</strong> Para modificar datos personales o cambiar la contraseña, contacta al área de Recursos Humanos.
+              <strong>Nota:</strong> Para modificar tus datos personales, contacta al área de Recursos Humanos.
             </div>
+          </div>
+
+          {/* Cambio de contraseña */}
+          <div className="card profile-info-card profile-password-card">
+            <h3 className="profile-section-title">Cambiar contraseña</h3>
+
+            {pwdError && <div className="alert alert-error">{pwdError}</div>}
+            {pwdSuccess && <div className="alert alert-success">{pwdSuccess}</div>}
+
+            <form onSubmit={handleChangePassword} className="profile-password-form">
+              <div className="form-group">
+                <label>Contraseña actual</label>
+                <input
+                  type="password"
+                  value={pwdForm.currentPassword}
+                  onChange={handlePwdChange('currentPassword')}
+                  autoComplete="current-password"
+                />
+              </div>
+              <div className="form-group">
+                <label>Nueva contraseña</label>
+                <input
+                  type="password"
+                  value={pwdForm.newPassword}
+                  onChange={handlePwdChange('newPassword')}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="form-group">
+                <label>Confirmar nueva contraseña</label>
+                <input
+                  type="password"
+                  value={pwdForm.confirmPassword}
+                  onChange={handlePwdChange('confirmPassword')}
+                  autoComplete="new-password"
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={pwdSaving}>
+                {pwdSaving ? 'Guardando...' : 'Cambiar contraseña'}
+              </button>
+            </form>
           </div>
         </div>
       </div>

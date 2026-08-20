@@ -6,7 +6,11 @@ import './Payroll.css';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const PERIOD_TYPES = { PrimeraQuincena: 'Primera Quincena', SegundaQuincena: 'Segunda Quincena', Mensual: 'Mensual' };
-const STATUS_COLORS = { Borrador: 'badge-secondary', Procesando: 'badge-warning', Completada: 'badge-success', Anulada: 'badge-danger' };
+const STATUS_COLORS = { Borrador: 'badge-secondary', Procesada: 'badge-warning', Aprobada: 'badge-success', Pagada: 'badge-info', Anulada: 'badge-danger' };
+// Estados en los que todavía se puede anular una planilla (antes de ser aprobada/pagada)
+const ANNULABLE_STATUSES = ['Borrador', 'Procesada'];
+
+const API_URL = 'http://localhost:5017/api/v1';
 
 function Payroll() {
   const { user } = useAuth();
@@ -68,6 +72,24 @@ function Payroll() {
     }
   };
 
+  const handleAnnul = async (id) => {
+    if (!window.confirm('¿Estás seguro de que querés anular esta planilla? Esta acción no se puede deshacer.')) {
+      return;
+    }
+    try {
+      setError('');
+      await payrollAPI.annul(id, '');
+      setSuccess('Planilla anulada');
+      loadPayrolls();
+      if (selected?.id === id) {
+        const res = await payrollAPI.getById(id);
+        setSelected(res.data);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error al anular la planilla');
+    }
+  };
+
   const handleViewDetail = async (id) => {
     try {
       const res = await payrollAPI.getById(id);
@@ -76,6 +98,40 @@ function Payroll() {
     } catch (err) {
       setError('Error al cargar detalle');
     }
+  };
+
+  const downloadPdf = (payrollId) => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_URL}/payroll/${payrollId}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Planilla_${payrollId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => setError('Error al generar PDF'));
+  };
+
+  const downloadPayslip = (payrollId, employeeId, employeeName) => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_URL}/payroll/${payrollId}/pdf/employee/${employeeId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Colilla_${employeeName?.replace(/ /g, '_')}_${payrollId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => setError('Error al generar colilla'));
   };
 
   const formatCurrency = (v) => new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 0 }).format(v);
@@ -105,10 +161,10 @@ function Payroll() {
               <tr>
                 <th>Período</th>
                 <th>Tipo</th>
-                <th>Empleados</th>
-                <th>Salario Bruto</th>
-                <th>Deducciones</th>
-                <th>Salario Neto</th>
+                <th className="num">Empleados</th>
+                <th className="num">Salario Bruto</th>
+                <th className="num">Deducciones</th>
+                <th className="num">Salario Neto</th>
                 <th>Estado</th>
                 <th>Generado</th>
                 <th>Acciones</th>
@@ -123,15 +179,19 @@ function Payroll() {
                     <td><strong>{MONTHS[p.periodMonth - 1]} {p.periodYear}</strong></td>
                     <td><span className="badge badge-info">{PERIOD_TYPES[p.periodType] || p.periodType}</span></td>
                     <td>{p.totalEmployees}</td>
-                    <td>{formatCurrency(p.totalGrossSalary)}</td>
-                    <td>{formatCurrency(p.totalDeductions)}</td>
-                    <td><strong>{formatCurrency(p.totalNetSalary)}</strong></td>
+                    <td className="num">{formatCurrency(p.totalGrossSalary)}</td>
+                    <td className="num">{formatCurrency(p.totalDeductions)}</td>
+                    <td className="num"><strong>{formatCurrency(p.totalNetSalary)}</strong></td>
                     <td><span className={`badge ${STATUS_COLORS[p.status] || 'badge-secondary'}`}>{p.status}</span></td>
                     <td>{formatDate(p.createdAt)}</td>
-                    <td>
+                    <td style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       <button className="btn btn-sm btn-ghost" onClick={() => handleViewDetail(p.id)}>Ver</button>
-                      {p.status === 'Completada' && !p.approvedAt && (
+                      <button className="btn btn-sm btn-primary" onClick={() => downloadPdf(p.id)}>PDF</button>
+                      {p.status === 'Procesada' && !p.approvedAt && (
                         <button className="btn btn-sm btn-success" onClick={() => handleApprove(p.id)}>Aprobar</button>
+                      )}
+                      {ANNULABLE_STATUSES.includes(p.status) && (
+                        <button className="btn btn-sm btn-danger" onClick={() => handleAnnul(p.id)}>Anular</button>
                       )}
                     </td>
                   </tr>
@@ -227,11 +287,12 @@ function Payroll() {
                     <tr>
                       <th>Empleado</th>
                       <th>Puesto</th>
-                      <th>Salario Base</th>
-                      <th>H.Extra</th>
-                      <th>Bruto</th>
-                      <th>Deducciones</th>
-                      <th>Neto</th>
+                      <th className="num">Salario Base</th>
+                      <th className="num">H.Extra</th>
+                      <th className="num">Bruto</th>
+                      <th className="num">Deducciones</th>
+                      <th className="num">Neto</th>
+                      <th>Colilla</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -239,11 +300,19 @@ function Payroll() {
                       <tr key={d.id}>
                         <td>{d.employeeName}</td>
                         <td>{d.positionName || '-'}</td>
-                        <td>{formatCurrency(d.baseSalary)}</td>
-                        <td>{d.overtimeHours > 0 ? `${d.overtimeHours}h (${formatCurrency(d.overtimeAmount)})` : '-'}</td>
-                        <td>{formatCurrency(d.grossSalary)}</td>
-                        <td>{formatCurrency(d.totalDeductions)}</td>
-                        <td><strong>{formatCurrency(d.netSalary)}</strong></td>
+                        <td className="num">{formatCurrency(d.baseSalary)}</td>
+                        <td className="num">{d.overtimeHours > 0 ? `${d.overtimeHours}h (${formatCurrency(d.overtimeAmount)})` : '-'}</td>
+                        <td className="num">{formatCurrency(d.grossSalary)}</td>
+                        <td className="num">{formatCurrency(d.totalDeductions)}</td>
+                        <td className="num"><strong>{formatCurrency(d.netSalary)}</strong></td>
+                        <td>
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => downloadPayslip(selected.id, d.employeeId, d.employeeName)}
+                          >
+                            Colilla
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -252,9 +321,17 @@ function Payroll() {
 
               <div className="modal-actions">
                 <button className="btn btn-secondary" onClick={() => setShowDetail(false)}>Cerrar</button>
-                {selected.status === 'Completada' && !selected.approvedAt && (
+                <button className="btn btn-primary" onClick={() => downloadPdf(selected.id)}>
+                  Descargar PDF General
+                </button>
+                {selected.status === 'Procesada' && !selected.approvedAt && (
                   <button className="btn btn-success" onClick={() => { handleApprove(selected.id); setShowDetail(false); }}>
                     Aprobar Planilla
+                  </button>
+                )}
+                {ANNULABLE_STATUSES.includes(selected.status) && (
+                  <button className="btn btn-danger" onClick={() => { handleAnnul(selected.id); setShowDetail(false); }}>
+                    Anular Planilla
                   </button>
                 )}
               </div>

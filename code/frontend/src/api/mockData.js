@@ -119,10 +119,10 @@ export const mockAttendanceRecords = [
 
 // Registros de horas extra
 export const mockOvertimeRecords = [
-  { id: 1, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-24', hours: 1.5, reason: 'Cierre de proyecto urgente', status: 'Detectada', detectionType: 'Automática', amount: 12500 },
-  { id: 2, employeeId: 5, employeeName: 'Ana Martínez', date: '2026-02-23', hours: 2.0, reason: 'Atención a cliente', status: 'Detectada', detectionType: 'Automática', amount: 15000 },
-  { id: 3, employeeId: 6, employeeName: 'Luis Hernández', date: '2026-02-22', hours: 1.0, reason: 'Mantenimiento emergente', status: 'Aprobada', detectionType: 'Automática', amount: 8500, approvedAt: '2026-02-23', reviewerName: 'María González' },
-  { id: 4, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-20', hours: 0.75, reason: 'Entrega de informe', status: 'Rechazada', detectionType: 'Automática', amount: 6250, approvedAt: '2026-02-21', reviewerName: 'María González', reviewerComments: 'No autorizada previamente' },
+  { id: 1, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-24', startTime: '17:00', endTime: '18:30', totalHours: 1.5, justification: 'Cierre de proyecto urgente solicitado por el supervisor', status: 'Pendiente', detectionType: 'Automatica', totalAmount: 12500 },
+  { id: 2, employeeId: 5, employeeName: 'Ana Martínez', date: '2026-02-23', startTime: '17:00', endTime: '19:00', totalHours: 2.0, justification: null, status: 'Detectada', detectionType: 'Automatica', totalAmount: 15000 },
+  { id: 3, employeeId: 6, employeeName: 'Luis Hernández', date: '2026-02-22', startTime: '17:00', endTime: '18:00', totalHours: 1.0, justification: 'Mantenimiento emergente de la bomba de agua', status: 'Aprobada', detectionType: 'Automatica', totalAmount: 8500, reviewedAt: '2026-02-23', reviewedByName: 'María González' },
+  { id: 4, employeeId: 4, employeeName: 'Juan Pérez', date: '2026-02-20', startTime: '17:00', endTime: '17:45', totalHours: 0.75, justification: 'Entrega de informe mensual', status: 'Rechazada', detectionType: 'Automatica', totalAmount: 6250, reviewedAt: '2026-02-21', reviewedByName: 'María González', reviewComments: 'No autorizada previamente' },
 ];
 
 // Empleados detallados para gestión
@@ -155,7 +155,7 @@ export const getMyOvertimeRecords = (employeeId) => {
 };
 
 export const getPendingOvertimeRecords = () => {
-  return mockOvertimeRecords.filter(r => r.status === 'Detectada');
+  return mockOvertimeRecords.filter(r => r.status === 'Detectada' || r.status === 'Pendiente');
 };
 
 export const getAllOvertimeRecords = () => {

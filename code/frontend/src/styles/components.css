@@ -189,6 +189,28 @@
   padding-right: var(--sp-5);
 }
 
+/* Montos / valores numéricos alineados a la derecha (problema 12) */
+.table th.num,
+.table td.num,
+.text-right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------
+   Texto SIEMPRE blanco sobre superficies verdes (legibilidad).
+   Cubre las tarjetas/banners verdes de todas las pantallas y evita
+   que reglas globales con el mismo nombre de clase (ej. .stat-value)
+   pinten el texto de oscuro sobre fondo verde.
+   --------------------------------------------------------------- */
+.balance-card, .balance-card *,
+.welcome-banner, .welcome-banner *,
+.eval-score-circle, .eval-score-circle *,
+.usage-progress, .usage-progress *,
+.avatar-placeholder, .avatar-placeholder * {
+  color: var(--c-white);
+}
+
 /* Celda de "sin datos" */
 .no-data {
   text-align: center;

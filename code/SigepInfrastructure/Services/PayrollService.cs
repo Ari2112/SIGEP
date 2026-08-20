@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using SigepApplication.DTOs.Payroll;
 using SigepApplication.Interfaces;
 using SigepDomain.Entities;
-using SigepDomain.Enums;
 using SigepInfrastructure.Persistence;
 
 namespace SigepInfrastructure.Services;
@@ -23,9 +22,11 @@ public class PayrollService : IPayrollService
         var payrolls = await _context.Payrolls
             .Include(p => p.ProcessedBy)
             .Include(p => p.ApprovedBy)
+            .Include(p => p.PayrollStatus)
+            .Include(p => p.PayrollPeriodType)
             .OrderByDescending(p => p.PeriodYear)
             .ThenByDescending(p => p.PeriodMonth)
-            .ThenByDescending(p => p.PeriodType)
+            .ThenByDescending(p => p.PayrollPeriodTypeId)
             .ToListAsync();
 
         return payrolls.Select(p => MapToDto(p, false));
@@ -36,6 +37,8 @@ public class PayrollService : IPayrollService
         var payroll = await _context.Payrolls
             .Include(p => p.ProcessedBy)
             .Include(p => p.ApprovedBy)
+            .Include(p => p.PayrollStatus)
+            .Include(p => p.PayrollPeriodType)
             .Include(p => p.Details)
                 .ThenInclude(d => d.Employee)
                     .ThenInclude(e => e!.Position)
@@ -52,26 +55,51 @@ public class PayrollService : IPayrollService
 
     public async Task<PayrollDto> GenerateAsync(CreatePayrollDto dto, int userId)
     {
-        // Verificar si ya existe una planilla para ese período
+        var annulledStatus = await GetPayrollStatusAsync("Anulada");
+        var draftStatus = await GetPayrollStatusAsync("Borrador");
+        var processedStatus = await GetPayrollStatusAsync("Procesada");
+
+        var periodType = await _context.PayrollPeriodTypes
+            .FirstOrDefaultAsync(pt => pt.Id == dto.PeriodType);
+
+        if (periodType == null)
+            throw new ArgumentException("Tipo de período de planilla no válido");
+
         var existing = await _context.Payrolls
-            .FirstOrDefaultAsync(p => p.PeriodYear == dto.PeriodYear
-                                   && p.PeriodMonth == dto.PeriodMonth
-                                   && (int)p.PeriodType == dto.PeriodType);
+            .FirstOrDefaultAsync(p =>
+                p.PeriodYear == dto.PeriodYear &&
+                p.PeriodMonth == dto.PeriodMonth &&
+                p.PayrollPeriodTypeId == dto.PeriodType);
 
-        if (existing != null && existing.Status != PayrollStatus.Anulada)
-            throw new InvalidOperationException($"Ya existe una planilla para el período {dto.PeriodYear}/{dto.PeriodMonth} tipo {dto.PeriodType}");
+        if (existing != null)
+        {
+            if (existing.PayrollStatusId != annulledStatus.Id)
+            {
+                throw new InvalidOperationException(
+                    $"Ya existe una planilla para el período {dto.PeriodYear}/{dto.PeriodMonth} tipo {periodType.Name}");
+            }
 
-        var periodType = (PayrollPeriodType)dto.PeriodType;
-        var (startDate, endDate) = GetPeriodDates(dto.PeriodYear, dto.PeriodMonth, periodType);
+            // La planilla anterior está anulada. La restricción única
+            // UQ_Payrolls_Period (año, mes, tipo) no permite dos filas con el
+            // mismo período aunque una esté anulada, así que se elimina la vieja
+            // para liberar el período antes de regenerar. El borrado en cascada
+            // se lleva detalles, deducciones y beneficios; las horas extra ligadas
+            // quedan con PayrollDetailId nulo (su Status ya se revirtió a Aprobada
+            // en AnnulAsync, así que quedan disponibles para la nueva planilla).
+            _context.Payrolls.Remove(existing);
+            await _context.SaveChangesAsync();
+        }
+
+        var (startDate, endDate) = GetPeriodDates(dto.PeriodYear, dto.PeriodMonth, periodType.Name);
 
         var payroll = new Payroll
         {
             PeriodYear = dto.PeriodYear,
             PeriodMonth = dto.PeriodMonth,
-            PeriodType = periodType,
+            PayrollPeriodTypeId = periodType.Id,
             PeriodStartDate = startDate,
             PeriodEndDate = endDate,
-            Status = PayrollStatus.Procesando,
+            PayrollStatusId = draftStatus.Id,
             ProcessedById = userId,
             ProcessedAt = DateTime.UtcNow,
             Notes = dto.Notes,
@@ -81,44 +109,163 @@ public class PayrollService : IPayrollService
         _context.Payrolls.Add(payroll);
         await _context.SaveChangesAsync();
 
-        // Obtener empleados activos
+        var activeStatus = await _context.EmployeeStatuses
+            .FirstAsync(es => es.Name == "Activo");
+
         var employees = await _context.Employees
             .Include(e => e.Position)
             .Include(e => e.Schedule)
-            .Where(e => e.Status == EmployeeStatus.Activo && e.HireDate <= endDate)
+            .Where(e => e.EmployeeStatusId == activeStatus.Id && e.HireDate <= endDate)
             .ToListAsync();
 
-        // Obtener deducciones y beneficios configurados
-        var deductionTypes = await _context.DeductionTypes.Where(d => d.IsActive).ToListAsync();
-        var benefitTypes = await _context.BenefitTypes.Where(b => b.IsActive).ToListAsync();
+        var deductionTypes = await _context.DeductionTypes
+            .Where(d => d.IsActive)
+            .ToListAsync();
 
-        // Número de días laborales en el período
+        var benefitTypes = await _context.BenefitTypes
+            .Where(b => b.IsActive)
+            .ToListAsync();
+
         int workDays = CountWorkDays(startDate, endDate);
 
-        decimal totalGross = 0, totalDeductions = 0, totalBenefits = 0, totalNet = 0;
+        decimal totalGross = 0;
+        decimal totalDeductions = 0;
+        decimal totalBenefits = 0;
+        decimal totalNet = 0;
 
         foreach (var emp in employees)
         {
-            // Calcular salario proporcional
-            decimal dailySalary = emp.BaseSalary / 30;
-            decimal periodSalary = periodType == PayrollPeriodType.Mensual
+            // Calcular salario base del período (mensual o quincenal)
+            decimal fullPeriodSalary = IsMonthlyPeriod(periodType.Name)
                 ? emp.BaseSalary
                 : emp.BaseSalary / 2;
 
-            // Horas extra aprobadas en el período
+            // Calcular proporcional si el empleado ingresó durante este período
+            decimal periodSalary;
+            if (emp.HireDate > startDate && emp.HireDate <= endDate)
+            {
+                // Días trabajados en el período
+                int totalPeriodDays = IsMonthlyPeriod(periodType.Name) ? 30 : 15;
+                int daysWorked = (endDate - emp.HireDate.Date).Days + 1;
+                daysWorked = Math.Min(daysWorked, totalPeriodDays);
+                periodSalary = Math.Round(fullPeriodSalary * daysWorked / totalPeriodDays, 2);
+            }
+            else
+            {
+                periodSalary = fullPeriodSalary;
+            }
+
             var overtimeRecords = await _context.OvertimeRecords
-                .Where(o => o.EmployeeId == emp.Id
-                         && o.Date >= startDate
-                         && o.Date <= endDate
-                         && o.Status == OvertimeStatus.Aprobada)
+                .Where(o =>
+                    o.EmployeeId == emp.Id &&
+                    o.Date >= startDate &&
+                    o.Date <= endDate &&
+                    o.Status == OvertimeStatus.Aprobada)
                 .ToListAsync();
 
             decimal overtimeHours = overtimeRecords.Sum(o => o.TotalHours);
             decimal overtimeAmount = overtimeRecords.Sum(o => o.TotalAmount);
 
-            decimal grossSalary = periodSalary + overtimeAmount;
+            // Permisos sin goce aprobados en el período — se descuentan del salario
+            var approvedRequestStatus = await _context.RequestStatuses
+                .FirstOrDefaultAsync(s => s.Name == "Aprobada");
 
-            // Calcular deducciones
+            decimal unpaidPermissionDays = 0;
+            if (approvedRequestStatus != null)
+            {
+                var unpaidPermissions = await _context.PermissionRequests
+                    .Include(pr => pr.PermissionType)
+                    .Where(pr =>
+                        pr.EmployeeId == emp.Id &&
+                        pr.RequestStatusId == approvedRequestStatus.Id &&
+                        pr.StartDate >= startDate &&
+                        pr.StartDate <= endDate &&
+                        pr.PermissionType != null &&
+                        !pr.PermissionType.IsPaid)
+                    .ToListAsync();
+
+                unpaidPermissionDays = unpaidPermissions.Sum(pr => pr.DurationDays);
+            }
+
+            decimal dailySalary = periodSalary / (IsMonthlyPeriod(periodType.Name) ? 30m : 15m);
+            decimal unpaidPermissionDeduction = Math.Round(dailySalary * unpaidPermissionDays, 2);
+
+            // === INCAPACIDADES aprobadas que caen dentro del período ===
+            // Reglas legales:
+            //  - Enfermedad común (CCSS): el patrono paga el 50% de los PRIMEROS 3 días;
+            //    del día 4 en adelante la CCSS paga el 60% (depósito directo, informativo).
+            //  - Accidente laboral (INS): el patrono NO paga; el INS paga 60% desde el día 1.
+            //  - Maternidad (CCSS): el patrono NO paga; la CCSS paga 100%.
+            // En todos los casos los días incapacitados se REBAJAN del salario, porque el
+            // subsidio no es salario y lo deposita la entidad aseguradora, no la empresa.
+            var approvedDisabilities = await _context.DisabilityRequests
+                .Include(dr => dr.DisabilityType)
+                .Include(dr => dr.RequestStatus)
+                .Where(dr =>
+                    dr.EmployeeId == emp.Id &&
+                    dr.RequestStatus != null &&
+                    dr.RequestStatus.Name == "Aprobada" &&
+                    dr.StartDate <= endDate &&
+                    dr.EndDate >= startDate)
+                .ToListAsync();
+
+            int disabilityDays = 0;
+            decimal disabilityDeduction = 0m;
+            decimal disabilityEmployerPay = 0m;
+            decimal disabilitySubsidy = 0m;
+            string? subsidyEntity = null;
+
+            foreach (var dis in approvedDisabilities)
+            {
+                string typeName = dis.DisabilityType?.Name ?? "Otro";
+                bool isINS = typeName.Contains("Accidente", StringComparison.OrdinalIgnoreCase);
+                bool isMaternidad = typeName.Contains("Maternidad", StringComparison.OrdinalIgnoreCase);
+                // Enfermedad común y "Otro" se tratan como CCSS por enfermedad.
+
+                string thisEntity = isINS ? "INS" : "CCSS";
+                subsidyEntity = (subsidyEntity == null || subsidyEntity == thisEntity)
+                    ? thisEntity
+                    : "CCSS/INS";
+
+                // Recorrer solo los días de la incapacidad que caen dentro del período.
+                var dayStart = dis.StartDate.Date > startDate.Date ? dis.StartDate.Date : startDate.Date;
+                var dayEnd = dis.EndDate.Date < endDate.Date ? dis.EndDate.Date : endDate.Date;
+
+                for (var day = dayStart; day <= dayEnd; day = day.AddDays(1))
+                {
+                    // Número de día dentro de la incapacidad (1, 2, 3, ...).
+                    int dayNumber = (day - dis.StartDate.Date).Days + 1;
+
+                    disabilityDays++;
+                    disabilityDeduction += dailySalary; // el día no se paga como salario
+
+                    if (isINS)
+                    {
+                        disabilitySubsidy += dailySalary * 0.60m;          // INS 60% desde el día 1
+                    }
+                    else if (isMaternidad)
+                    {
+                        disabilitySubsidy += dailySalary * 1.00m;          // CCSS maternidad 100%
+                    }
+                    else if (dayNumber <= 3)
+                    {
+                        disabilityEmployerPay += dailySalary * 0.50m;      // patrono paga 50%
+                        disabilitySubsidy += dailySalary * 0.50m;          // CCSS paga el otro 50%
+                    }
+                    else
+                    {
+                        disabilitySubsidy += dailySalary * 0.60m;          // CCSS 60% desde el día 4
+                    }
+                }
+            }
+
+            disabilityDeduction = Math.Round(disabilityDeduction, 2);
+            disabilityEmployerPay = Math.Round(disabilityEmployerPay, 2);
+            disabilitySubsidy = Math.Round(disabilitySubsidy, 2);
+
+            decimal grossSalary = periodSalary + overtimeAmount - unpaidPermissionDeduction
+                                  - disabilityDeduction + disabilityEmployerPay;
+
             var detail = new PayrollDetail
             {
                 PayrollId = payroll.Id,
@@ -128,19 +275,43 @@ public class PayrollService : IPayrollService
                 OvertimeHours = overtimeHours,
                 OvertimeAmount = overtimeAmount,
                 GrossSalary = grossSalary,
+                DisabilityDays = disabilityDays,
+                DisabilityDeduction = disabilityDeduction,
+                DisabilityEmployerPay = disabilityEmployerPay,
+                DisabilitySubsidyAmount = disabilitySubsidy,
+                DisabilitySubsidyEntity = subsidyEntity,
                 CreatedAt = DateTime.UtcNow
             };
 
             decimal detailDeductions = 0;
             decimal detailBenefits = 0;
+// Salario mensual equivalente para calcular renta correctamente
+// periodType es una entidad con campo Name, no un enum
+bool isMensual = IsMonthlyPeriod(periodType.Name);
+decimal monthlyEquivalent = isMensual
+    ? grossSalary
+    : grossSalary * 2;
 
-            foreach (var dedType in deductionTypes)
-            {
-                decimal amount = dedType.IsPercentage
-                    ? Math.Round(grossSalary * dedType.DefaultValue, 2)
-                    : dedType.DefaultValue;
+foreach (var dedType in deductionTypes)
+{
+    decimal amount;
 
-                var ded = new PayrollDeduction
+    if (dedType.Name.Contains("Renta") || dedType.Name.Contains("renta"))
+    {
+        // Impuesto sobre la renta con tramos progresivos CR
+        decimal monthlyTax = CalculateIncomeTax(monthlyEquivalent);
+        // Si es quincenal, cobrar la mitad del impuesto mensual
+        amount = isMensual
+            ? monthlyTax
+            : Math.Round(monthlyTax / 2, 2);
+    }
+    else
+    {
+        amount = dedType.IsPercentage
+            ? Math.Round(grossSalary * dedType.DefaultValue, 2)
+            : dedType.DefaultValue;
+    }
+                var deduction = new PayrollDeduction
                 {
                     DeductionTypeId = dedType.Id,
                     Amount = amount,
@@ -148,7 +319,8 @@ public class PayrollService : IPayrollService
                     PercentageValue = dedType.IsPercentage ? dedType.DefaultValue : null,
                     CreatedAt = DateTime.UtcNow
                 };
-                detail.Deductions.Add(ded);
+
+                detail.Deductions.Add(deduction);
                 detailDeductions += amount;
             }
 
@@ -158,7 +330,7 @@ public class PayrollService : IPayrollService
                     ? Math.Round(grossSalary * benType.DefaultValue, 2)
                     : benType.DefaultValue;
 
-                var ben = new PayrollBenefit
+                var benefit = new PayrollBenefit
                 {
                     BenefitTypeId = benType.Id,
                     Amount = amount,
@@ -166,23 +338,25 @@ public class PayrollService : IPayrollService
                     PercentageValue = benType.IsPercentage ? benType.DefaultValue : null,
                     CreatedAt = DateTime.UtcNow
                 };
-                detail.Benefits.Add(ben);
+
+                detail.Benefits.Add(benefit);
                 detailBenefits += amount;
             }
 
             detail.TotalDeductions = detailDeductions;
-            detail.TotalBenefits = detailBenefits;
-            detail.NetSalary = grossSalary - detailDeductions + detailBenefits;
+detail.TotalBenefits = detailBenefits;
+// Las cargas patronales (BenefitTypes) son costo del patrono
+// NO se suman al salario neto del empleado
+detail.NetSalary = grossSalary - detailDeductions;
 
             _context.PayrollDetails.Add(detail);
-            await _context.SaveChangesAsync(); // obtener detail.Id para linkear OT
+            await _context.SaveChangesAsync();
 
             totalGross += grossSalary;
             totalDeductions += detailDeductions;
             totalBenefits += detailBenefits;
             totalNet += detail.NetSalary;
 
-            // Marcar horas extra como pagadas y enlazar a este detalle de planilla
             foreach (var ot in overtimeRecords)
             {
                 ot.Status = OvertimeStatus.Pagada;
@@ -196,13 +370,19 @@ public class PayrollService : IPayrollService
         payroll.TotalBenefits = totalBenefits;
         payroll.TotalNetSalary = totalNet;
         payroll.TotalEmployees = employees.Count;
-        payroll.Status = PayrollStatus.Completada;
+        payroll.PayrollStatusId = processedStatus.Id;
         payroll.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(userId, "GENERATE", "PLANILLA", "Payroll", payroll.Id,
-            description: $"Planilla generada: {dto.PeriodYear}/{dto.PeriodMonth} - {employees.Count} empleados - Total neto: {totalNet:C}");
+        await _auditService.LogAsync(
+            userId,
+            "GENERATE",
+            "PLANILLA",
+            "Payroll",
+            payroll.Id,
+            description: $"Planilla generada: {dto.PeriodYear}/{dto.PeriodMonth} - {employees.Count} empleados - Total neto: {totalNet:C}"
+        );
 
         return (await GetByIdAsync(payroll.Id))!;
     }
@@ -212,17 +392,28 @@ public class PayrollService : IPayrollService
         var payroll = await _context.Payrolls.FindAsync(id)
             ?? throw new ArgumentException("Planilla no encontrada");
 
-        if (payroll.Status != PayrollStatus.Completada)
-            throw new InvalidOperationException("Solo se puede aprobar una planilla completada");
+        var processedStatus = await GetPayrollStatusAsync("Procesada");
+        var approvedStatus = await GetPayrollStatusAsync("Aprobada");
 
+        if (payroll.PayrollStatusId != processedStatus.Id)
+            throw new InvalidOperationException("Solo se puede aprobar una planilla procesada");
+
+        payroll.PayrollStatusId = approvedStatus.Id;
         payroll.ApprovedById = userId;
         payroll.ApprovedAt = DateTime.UtcNow;
         payroll.Notes = notes ?? payroll.Notes;
         payroll.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
-        await _auditService.LogAsync(userId, "APPROVE", "PLANILLA", "Payroll", id,
-            description: $"Planilla aprobada: {payroll.PeriodYear}/{payroll.PeriodMonth}");
+
+        await _auditService.LogAsync(
+            userId,
+            "APPROVE",
+            "PLANILLA",
+            "Payroll",
+            id,
+            description: $"Planilla aprobada: {payroll.PeriodYear}/{payroll.PeriodMonth}"
+        );
 
         return (await GetByIdAsync(id))!;
     }
@@ -232,16 +423,55 @@ public class PayrollService : IPayrollService
         var payroll = await _context.Payrolls.FindAsync(id)
             ?? throw new ArgumentException("Planilla no encontrada");
 
-        if (payroll.Status == PayrollStatus.Anulada)
+        var annulledStatus = await GetPayrollStatusAsync("Anulada");
+        var draftStatus = await GetPayrollStatusAsync("Borrador");
+        var processedStatus = await GetPayrollStatusAsync("Procesada");
+
+        if (payroll.PayrollStatusId == annulledStatus.Id)
             throw new InvalidOperationException("La planilla ya está anulada");
 
-        payroll.Status = PayrollStatus.Anulada;
+        if (payroll.PayrollStatusId != draftStatus.Id && payroll.PayrollStatusId != processedStatus.Id)
+            throw new InvalidOperationException("Solo se puede anular una planilla en estado Borrador o Procesada");
+
+        // Las horas extra que esta planilla ya había "consumido" (Status = Pagada,
+        // ligadas a un detalle de esta planilla) quedan libres otra vez: vuelven a
+        // Aprobada y se desligan del detalle. Sin este paso, cualquier hora extra
+        // que pase por una planilla que luego se anula queda "Pagada" para siempre
+        // y nunca vuelve a aparecer en ninguna planilla futura, aunque nunca se
+        // le pagó de verdad.
+        var detailIds = await _context.PayrollDetails
+            .Where(d => d.PayrollId == id)
+            .Select(d => d.Id)
+            .ToListAsync();
+
+        if (detailIds.Count > 0)
+        {
+            var consumedOvertime = await _context.OvertimeRecords
+                .Where(o => o.PayrollDetailId != null && detailIds.Contains(o.PayrollDetailId.Value))
+                .ToListAsync();
+
+            foreach (var ot in consumedOvertime)
+            {
+                ot.Status = OvertimeStatus.Aprobada;
+                ot.PayrollDetailId = null;
+                ot.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        payroll.PayrollStatusId = annulledStatus.Id;
         payroll.Notes = notes;
         payroll.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
-        await _auditService.LogAsync(userId, "ANNUL", "PLANILLA", "Payroll", id,
-            description: $"Planilla anulada: {payroll.PeriodYear}/{payroll.PeriodMonth}");
+
+        await _auditService.LogAsync(
+            userId,
+            "ANNUL",
+            "PLANILLA",
+            "Payroll",
+            id,
+            description: $"Planilla anulada: {payroll.PeriodYear}/{payroll.PeriodMonth}"
+        );
 
         return (await GetByIdAsync(id))!;
     }
@@ -278,24 +508,56 @@ public class PayrollService : IPayrollService
             .ToListAsync();
     }
 
-    private static (DateTime start, DateTime end) GetPeriodDates(int year, int month, PayrollPeriodType type)
+    private async Task<PayrollStatus> GetPayrollStatusAsync(string name)
     {
-        return type switch
+        var status = await _context.PayrollStatuses
+            .FirstOrDefaultAsync(s => s.Name == name);
+
+        if (status == null)
+            throw new InvalidOperationException($"No existe el estado de planilla: {name}");
+
+        return status;
+    }
+
+    private static (DateTime start, DateTime end) GetPeriodDates(int year, int month, string periodTypeName)
+    {
+        if (periodTypeName.Contains("Primera", StringComparison.OrdinalIgnoreCase))
         {
-            PayrollPeriodType.PrimeraQuincena => (new DateTime(year, month, 1), new DateTime(year, month, 15)),
-            PayrollPeriodType.SegundaQuincena => (new DateTime(year, month, 16), new DateTime(year, month, DateTime.DaysInMonth(year, month))),
-            _ => (new DateTime(year, month, 1), new DateTime(year, month, DateTime.DaysInMonth(year, month)))
-        };
+            return (
+                new DateTime(year, month, 1),
+                new DateTime(year, month, 15)
+            );
+        }
+
+        if (periodTypeName.Contains("Segunda", StringComparison.OrdinalIgnoreCase))
+        {
+            return (
+                new DateTime(year, month, 16),
+                new DateTime(year, month, DateTime.DaysInMonth(year, month))
+            );
+        }
+
+        return (
+            new DateTime(year, month, 1),
+            new DateTime(year, month, DateTime.DaysInMonth(year, month))
+        );
+    }
+
+    private static bool IsMonthlyPeriod(string periodTypeName)
+    {
+        return periodTypeName.Contains("Mensual", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int CountWorkDays(DateTime start, DateTime end)
     {
         int count = 0;
+
         for (var d = start; d <= end; d = d.AddDays(1))
         {
             if (d.DayOfWeek != DayOfWeek.Saturday && d.DayOfWeek != DayOfWeek.Sunday)
                 count++;
         }
+
         return count;
     }
 
@@ -306,10 +568,10 @@ public class PayrollService : IPayrollService
             Id = p.Id,
             PeriodYear = p.PeriodYear,
             PeriodMonth = p.PeriodMonth,
-            PeriodType = p.PeriodType.ToString(),
+            PeriodType = p.PayrollPeriodType?.Name ?? string.Empty,
             PeriodStartDate = p.PeriodStartDate,
             PeriodEndDate = p.PeriodEndDate,
-            Status = p.Status.ToString(),
+            Status = p.PayrollStatus?.Name ?? string.Empty,
             TotalGrossSalary = p.TotalGrossSalary,
             TotalDeductions = p.TotalDeductions,
             TotalBenefits = p.TotalBenefits,
@@ -340,6 +602,11 @@ public class PayrollService : IPayrollService
                 TotalDeductions = d.TotalDeductions,
                 TotalBenefits = d.TotalBenefits,
                 NetSalary = d.NetSalary,
+                DisabilityDays = d.DisabilityDays,
+                DisabilityDeduction = d.DisabilityDeduction,
+                DisabilityEmployerPay = d.DisabilityEmployerPay,
+                DisabilitySubsidyAmount = d.DisabilitySubsidyAmount,
+                DisabilitySubsidyEntity = d.DisabilitySubsidyEntity,
                 Notes = d.Notes,
                 Deductions = d.Deductions.Select(dd => new DeductionItemDto
                 {
@@ -362,4 +629,33 @@ public class PayrollService : IPayrollService
 
         return dto;
     }
+    /// <summary>
+/// Calcula el impuesto sobre la renta según tramos progresivos CR (2026).
+/// Decreto Ejecutivo N° 45333-H.
+/// Hasta ₡918.000: exento
+/// ₡918.001 - ₡1.347.000: 10%
+/// ₡1.347.001 - ₡2.364.000: 15%
+/// ₡2.364.001 - ₡4.727.000: 20%
+/// Más de ₡4.727.000: 25%
+/// </summary>
+private decimal CalculateIncomeTax(decimal monthlyGross)
+{
+    decimal tax = 0;
+
+    // Tramos oficiales 2026 — Decreto Ejecutivo N° 45333-H (Gaceta 229, 05/12/2025).
+    // Exento hasta 918.000; 10% hasta 1.347.000; 15% hasta 2.364.000;
+    // 20% hasta 4.727.000; 25% sobre el exceso.
+    if (monthlyGross <= 918000m)
+        tax = 0;
+    else if (monthlyGross <= 1347000m)
+        tax = (monthlyGross - 918000m) * 0.10m;
+    else if (monthlyGross <= 2364000m)
+        tax = (429000m * 0.10m) + ((monthlyGross - 1347000m) * 0.15m);
+    else if (monthlyGross <= 4727000m)
+        tax = (429000m * 0.10m) + (1017000m * 0.15m) + ((monthlyGross - 2364000m) * 0.20m);
+    else
+        tax = (429000m * 0.10m) + (1017000m * 0.15m) + (2363000m * 0.20m) + ((monthlyGross - 4727000m) * 0.25m);
+
+    return Math.Round(tax, 2);
+}
 }

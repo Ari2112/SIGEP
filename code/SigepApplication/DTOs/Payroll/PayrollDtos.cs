@@ -38,6 +38,14 @@ public class PayrollDetailDto
     public decimal TotalDeductions { get; set; }
     public decimal TotalBenefits { get; set; }
     public decimal NetSalary { get; set; }
+
+    // === Incapacidades ===
+    public int DisabilityDays { get; set; }
+    public decimal DisabilityDeduction { get; set; }
+    public decimal DisabilityEmployerPay { get; set; }
+    public decimal DisabilitySubsidyAmount { get; set; }
+    public string? DisabilitySubsidyEntity { get; set; }
+
     public string? Notes { get; set; }
     public List<DeductionItemDto> Deductions { get; set; } = new();
     public List<BenefitItemDto> Benefits { get; set; } = new();

@@ -18,6 +18,10 @@ function OvertimeHours() {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [reviewAction, setReviewAction] = useState(null);
   const [reviewComments, setReviewComments] = useState('');
+  const [showJustifyModal, setShowJustifyModal] = useState(false);
+  const [justifyRecord, setJustifyRecord] = useState(null);
+  const [justifyText, setJustifyText] = useState('');
+  const [justifyError, setJustifyError] = useState('');
   const [filters, setFilters] = useState({
     employeeId: '',
     dateFrom: '',
@@ -25,7 +29,7 @@ function OvertimeHours() {
     status: ''
   });
 
-  const isManager = user?.role === 'Admin' || user?.role === 'RRHH';
+  const isManager = ['Admin', 'Administrador', 'RRHH', 'Recursos Humanos', 'Jefatura'].includes(user?.role);
 
   useEffect(() => {
     loadData();
@@ -54,10 +58,12 @@ function OvertimeHours() {
 
       if (isManager) {
         const [allRes, empRes] = await Promise.all([
-          overtimeAPI.getAll({ status: 'Detectada' }),
+          overtimeAPI.getAll(),
           employeeAPI.getAll()
         ]);
-        setRecords(allRes.data);
+        // Pendientes de revisión: detectadas automáticamente o ya justificadas por el empleado
+        const reviewable = allRes.data.filter(r => r.status === 'Detectada' || r.status === 'Pendiente');
+        setRecords(reviewable);
         setEmployees(empRes.data);
       }
     } catch (err) {
@@ -126,6 +132,43 @@ function OvertimeHours() {
       loadData();
     } catch (err) {
       setError(err.response?.data?.message || 'Error al procesar');
+    }
+  };
+
+  const openJustifyModal = (record) => {
+    setJustifyRecord(record);
+    setJustifyText(record.justification || '');
+    setJustifyError('');
+    setShowJustifyModal(true);
+  };
+
+  const handleJustify = async () => {
+    if (!justifyText.trim()) {
+      setJustifyError('Por favor indique el motivo de la hora extra');
+      return;
+    }
+
+    // ============ MOCK JUSTIFY ============
+    if (USE_MOCK) {
+      setShowJustifyModal(false);
+      const updated = myRecords.map(r =>
+        r.id === justifyRecord.id
+          ? { ...r, justification: justifyText.trim(), status: r.status === 'Detectada' ? 'Pendiente' : r.status }
+          : r
+      );
+      setMyRecords(updated);
+      setSuccessMessage('Justificación registrada exitosamente (modo demo)');
+      return;
+    }
+    // ============ FIN MOCK JUSTIFY ============
+
+    try {
+      await overtimeAPI.justify(justifyRecord.id, justifyText.trim());
+      setShowJustifyModal(false);
+      setSuccessMessage('Justificación registrada exitosamente');
+      loadData();
+    } catch (err) {
+      setJustifyError(err.response?.data?.message || 'Error al guardar la justificación');
     }
   };
 
@@ -205,7 +248,7 @@ function OvertimeHours() {
                   <th>Fin</th>
                   <th>Horas</th>
                   <th>Monto</th>
-                  <th>Tipo</th>
+                  <th>Justificación</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
@@ -222,7 +265,11 @@ function OvertimeHours() {
                       <td>{rec.endTime}</td>
                       <td>{rec.totalHours}h</td>
                       <td>{formatCurrency(rec.totalAmount)}</td>
-                      <td><span className="badge badge-info">{rec.detectionType}</span></td>
+                      <td className="justification-cell">
+                        {rec.justification
+                          ? <span title={rec.justification}>{rec.justification}</span>
+                          : <span className="badge badge-warning">Sin justificar</span>}
+                      </td>
                       <td>{getStatusBadge(rec.status)}</td>
                       <td>
                         <button
@@ -258,24 +305,44 @@ function OvertimeHours() {
                   <th>Horas</th>
                   <th>Monto</th>
                   <th>Estado</th>
-                  <th>Observación</th>
+                  <th>Mi Justificación</th>
+                  <th>Observación de RRHH</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {myRecords.length === 0 ? (
-                  <tr><td colSpan="7" className="no-data">No tiene registros de horas extra</td></tr>
+                  <tr><td colSpan="8" className="no-data">No tiene registros de horas extra</td></tr>
                 ) : (
-                  myRecords.map(rec => (
-                    <tr key={rec.id}>
-                      <td>{formatDate(rec.date)}</td>
-                      <td>{rec.startTime}</td>
-                      <td>{rec.endTime}</td>
-                      <td>{rec.totalHours}h</td>
-                      <td>{formatCurrency(rec.totalAmount)}</td>
-                      <td>{getStatusBadge(rec.status)}</td>
-                      <td>{rec.reviewComments || '-'}</td>
-                    </tr>
-                  ))
+                  myRecords.map(rec => {
+                    const canJustify = !rec.justification && (rec.status === 'Detectada' || rec.status === 'Pendiente');
+                    return (
+                      <tr key={rec.id}>
+                        <td>{formatDate(rec.date)}</td>
+                        <td>{rec.startTime}</td>
+                        <td>{rec.endTime}</td>
+                        <td>{rec.totalHours}h</td>
+                        <td>{formatCurrency(rec.totalAmount)}</td>
+                        <td>{getStatusBadge(rec.status)}</td>
+                        <td className="justification-cell">
+                          {rec.justification
+                            ? <span title={rec.justification}>{rec.justification}</span>
+                            : <span className="badge badge-warning">Falta justificar</span>}
+                        </td>
+                        <td>{rec.reviewComments || '-'}</td>
+                        <td>
+                          {canJustify && (
+                            <button
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => openJustifyModal(rec)}
+                            >
+                              Justificar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -325,6 +392,7 @@ function OvertimeHours() {
                   <th>Fecha</th>
                   <th>Horas</th>
                   <th>Monto</th>
+                  <th>Justificación</th>
                   <th>Estado</th>
                   <th>Revisado por</th>
                   <th>Observación</th>
@@ -332,7 +400,7 @@ function OvertimeHours() {
               </thead>
               <tbody>
                 {records.length === 0 ? (
-                  <tr><td colSpan="7" className="no-data">No hay registros</td></tr>
+                  <tr><td colSpan="8" className="no-data">No hay registros</td></tr>
                 ) : (
                   records.map(rec => (
                     <tr key={rec.id}>
@@ -340,6 +408,11 @@ function OvertimeHours() {
                       <td>{formatDate(rec.date)}</td>
                       <td>{rec.totalHours}h</td>
                       <td>{formatCurrency(rec.totalAmount)}</td>
+                      <td className="justification-cell">
+                        {rec.justification
+                          ? <span title={rec.justification}>{rec.justification}</span>
+                          : '-'}
+                      </td>
                       <td>{getStatusBadge(rec.status)}</td>
                       <td>{rec.reviewedByName || '-'}</td>
                       <td>{rec.reviewComments || '-'}</td>
@@ -365,6 +438,10 @@ function OvertimeHours() {
                 <p><strong>Horas:</strong> {selectedRecord.totalHours}h ({selectedRecord.startTime} - {selectedRecord.endTime})</p>
                 <p><strong>Monto:</strong> {formatCurrency(selectedRecord.totalAmount)}</p>
               </div>
+              <div className={`justification-box ${!selectedRecord.justification ? 'justification-missing' : ''}`}>
+                <strong>Justificación del empleado:</strong>
+                <p>{selectedRecord.justification || 'El empleado aún no ha justificado esta hora extra.'}</p>
+              </div>
               <div className="form-group">
                 <label>Observación {!reviewAction ? '(requerida)' : '(opcional)'}</label>
                 <textarea
@@ -383,6 +460,42 @@ function OvertimeHours() {
                   onClick={handleReview}
                 >
                   {reviewAction ? 'Aprobar' : 'Rechazar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Justify Modal */}
+        {showJustifyModal && justifyRecord && (
+          <div className="modal-overlay" onClick={() => setShowJustifyModal(false)}>
+            <div className="modal" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Justificar Hora Extra</h2>
+                <button className="close-btn" onClick={() => setShowJustifyModal(false)}>&times;</button>
+              </div>
+              <div className="info-box">
+                <p><strong>Fecha:</strong> {formatDate(justifyRecord.date)}</p>
+                <p><strong>Horas:</strong> {justifyRecord.totalHours}h ({justifyRecord.startTime} - {justifyRecord.endTime})</p>
+                <p><strong>Monto:</strong> {formatCurrency(justifyRecord.totalAmount)}</p>
+              </div>
+              {justifyError && <div className="alert alert-error">{justifyError}</div>}
+              <div className="form-group">
+                <label>Motivo de la hora extra (requerido)</label>
+                <textarea
+                  value={justifyText}
+                  onChange={e => setJustifyText(e.target.value)}
+                  rows="3"
+                  placeholder="Ej: Cierre de proyecto solicitado por mi supervisor..."
+                  required
+                />
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-secondary" onClick={() => setShowJustifyModal(false)}>
+                  Cancelar
+                </button>
+                <button className="btn btn-primary" onClick={handleJustify}>
+                  Guardar Justificación
                 </button>
               </div>
             </div>

@@ -3,6 +3,7 @@ using SigepApplication.DTOs.PerformanceEvaluation;
 using SigepApplication.Interfaces;
 using SigepDomain.Entities;
 using SigepInfrastructure.Persistence;
+using System.Linq;
 
 namespace SigepInfrastructure.Services;
 
@@ -64,8 +65,11 @@ public class PerformanceEvaluationService : IPerformanceEvaluationService
 
     public async Task<PerformanceEvaluationDto> CreateAsync(CreateEvaluationDto dto, int evaluatorUserId)
     {
-        if (dto.Score < 3 || dto.Score > 10)
-            throw new ArgumentException("La puntuación debe estar entre 3 y 10");
+        ValidateCriteria(dto.ScorePunctuality, dto.ScoreObedience, dto.ScoreQuality,
+                         dto.ScoreResponsibility, dto.ScoreTeamwork, dto.ScoreCustomerService);
+
+        var score = AverageScore(dto.ScorePunctuality, dto.ScoreObedience, dto.ScoreQuality,
+                                 dto.ScoreResponsibility, dto.ScoreTeamwork, dto.ScoreCustomerService);
 
         var employee = await _context.Employees.FindAsync(dto.EmployeeId)
             ?? throw new ArgumentException("Empleado no encontrado");
@@ -77,7 +81,13 @@ public class PerformanceEvaluationService : IPerformanceEvaluationService
             EvaluationDate = dto.EvaluationDate,
             PeriodStartDate = dto.PeriodStartDate,
             PeriodEndDate = dto.PeriodEndDate,
-            Score = dto.Score,
+            Score = score,
+            ScorePunctuality = dto.ScorePunctuality,
+            ScoreObedience = dto.ScoreObedience,
+            ScoreQuality = dto.ScoreQuality,
+            ScoreResponsibility = dto.ScoreResponsibility,
+            ScoreTeamwork = dto.ScoreTeamwork,
+            ScoreCustomerService = dto.ScoreCustomerService,
             Comments = dto.Comments,
             Strengths = dto.Strengths,
             AreasToImprove = dto.AreasToImprove,
@@ -90,7 +100,7 @@ public class PerformanceEvaluationService : IPerformanceEvaluationService
         await _context.SaveChangesAsync();
 
         await _auditService.LogAsync(evaluatorUserId, "CREATE", "EVALUACION", "PerformanceEvaluation", eval.Id,
-            description: $"Evaluación creada para {employee.FullName}: puntuación {dto.Score}/10");
+            description: $"Evaluación creada para {employee.FullName}: puntuación {score}/10");
 
         // Notificar al empleado
         var empUser = await _context.Users.FirstOrDefaultAsync(u => u.EmployeeId == dto.EmployeeId);
@@ -99,12 +109,23 @@ public class PerformanceEvaluationService : IPerformanceEvaluationService
             await _notificationService.CreateNotificationAsync(
                 empUser.Id,
                 "Nueva evaluación de desempeño",
-                $"Se ha registrado una evaluación de desempeño con puntuación {dto.Score}/10. Por favor revise y confirme.",
+                $"Se ha registrado una evaluación de desempeño con puntuación {score}/10. Por favor revise y confirme.",
                 "INFO", "EVALUACION", "PerformanceEvaluation", eval.Id);
         }
 
         return (await GetByIdAsync(eval.Id))!;
     }
+
+    /// <summary>Valida que cada criterio esté entre 1 y 10.</summary>
+    private static void ValidateCriteria(params int[] scores)
+    {
+        if (scores.Any(s => s < 1 || s > 10))
+            throw new ArgumentException("Cada criterio debe tener una nota entre 1 y 10");
+    }
+
+    /// <summary>Promedio redondeado de los criterios (nota general).</summary>
+    private static int AverageScore(params int[] scores) =>
+        (int)Math.Round(scores.Average(), MidpointRounding.AwayFromZero);
 
     public async Task<PerformanceEvaluationDto> UpdateAsync(int id, UpdateEvaluationDto dto, int evaluatorUserId)
     {
@@ -114,10 +135,17 @@ public class PerformanceEvaluationService : IPerformanceEvaluationService
         if (eval.Status == EvaluationStatus.RevisadaPorEmpleado)
             throw new InvalidOperationException("No se puede modificar una evaluación ya revisada por el empleado");
 
-        if (dto.Score < 3 || dto.Score > 10)
-            throw new ArgumentException("La puntuación debe estar entre 3 y 10");
+        ValidateCriteria(dto.ScorePunctuality, dto.ScoreObedience, dto.ScoreQuality,
+                         dto.ScoreResponsibility, dto.ScoreTeamwork, dto.ScoreCustomerService);
 
-        eval.Score = dto.Score;
+        eval.ScorePunctuality = dto.ScorePunctuality;
+        eval.ScoreObedience = dto.ScoreObedience;
+        eval.ScoreQuality = dto.ScoreQuality;
+        eval.ScoreResponsibility = dto.ScoreResponsibility;
+        eval.ScoreTeamwork = dto.ScoreTeamwork;
+        eval.ScoreCustomerService = dto.ScoreCustomerService;
+        eval.Score = AverageScore(dto.ScorePunctuality, dto.ScoreObedience, dto.ScoreQuality,
+                                  dto.ScoreResponsibility, dto.ScoreTeamwork, dto.ScoreCustomerService);
         eval.Comments = dto.Comments;
         eval.Strengths = dto.Strengths;
         eval.AreasToImprove = dto.AreasToImprove;
@@ -126,7 +154,7 @@ public class PerformanceEvaluationService : IPerformanceEvaluationService
 
         await _context.SaveChangesAsync();
         await _auditService.LogAsync(evaluatorUserId, "UPDATE", "EVALUACION", "PerformanceEvaluation", id,
-            description: $"Evaluación actualizada: puntuación {dto.Score}/10");
+            description: $"Evaluación actualizada: puntuación {eval.Score}/10");
 
         return (await GetByIdAsync(id))!;
     }
@@ -182,6 +210,12 @@ public class PerformanceEvaluationService : IPerformanceEvaluationService
         PeriodEndDate = pe.PeriodEndDate,
         Score = pe.Score,
         ScoreLabel = GetScoreLabel(pe.Score),
+        ScorePunctuality = pe.ScorePunctuality,
+        ScoreObedience = pe.ScoreObedience,
+        ScoreQuality = pe.ScoreQuality,
+        ScoreResponsibility = pe.ScoreResponsibility,
+        ScoreTeamwork = pe.ScoreTeamwork,
+        ScoreCustomerService = pe.ScoreCustomerService,
         Comments = pe.Comments,
         Strengths = pe.Strengths,
         AreasToImprove = pe.AreasToImprove,

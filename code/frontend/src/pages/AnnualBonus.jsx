@@ -3,6 +3,8 @@ import { annualBonusAPI } from '../api/api';
 import Layout from '../components/Layout';
 import './AnnualBonus.css';
 
+const API_URL = 'http://localhost:5017/api/v1';
+
 const STATUS_COLORS = {
   Borrador: 'badge-secondary',
   Calculado: 'badge-info',
@@ -92,6 +94,23 @@ function AnnualBonus() {
   const formatCurrency = (v) => new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 0 }).format(v || 0);
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-CR') : '-';
 
+  const downloadPdf = (bonusId, year) => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_URL}/annualbonus/${bonusId}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Aguinaldo_${year || bonusId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => setError('Error al generar PDF del aguinaldo'));
+  };
+
   if (loading) return <Layout><div className="loading">Cargando...</div></Layout>;
 
   return (
@@ -139,6 +158,7 @@ function AnnualBonus() {
                     <td>{b.approvedByName || '-'}</td>
                     <td>
                       <button className="btn btn-sm btn-ghost" onClick={() => handleViewDetail(b.id)}>Ver</button>
+                      <button className="btn btn-sm btn-primary" onClick={() => downloadPdf(b.id, b.year)}>PDF</button>
                       {b.status === 'Calculado' && (
                         <>
                           <button className="btn btn-sm btn-success" onClick={() => handleApprove(b.id)}>Aprobar</button>
@@ -206,7 +226,7 @@ function AnnualBonus() {
                       <th>Empleado</th>
                       <th>Puesto</th>
                       <th>Meses Trab.</th>
-                      <th>Salario Promedio</th>
+                      <th>Salario Base</th>
                       <th>Proporcional</th>
                       <th>Neto</th>
                     </tr>
@@ -227,6 +247,9 @@ function AnnualBonus() {
               </div>
               <div className="modal-actions">
                 <button className="btn btn-secondary" onClick={() => setShowDetail(false)}>Cerrar</button>
+                <button className="btn btn-primary" onClick={() => downloadPdf(selected.id, selected.year)}>
+                  Descargar PDF
+                </button>
                 {selected.status === 'Calculado' && (
                   <>
                     <button className="btn btn-warning" onClick={() => handleRecalculate(selected.id)}>Recalcular</button>

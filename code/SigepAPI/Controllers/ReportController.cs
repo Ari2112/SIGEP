@@ -29,7 +29,7 @@ public class ReportController : ControllerBase
 
     /// <summary>Reporte de asistencia por período (HU-10.1)</summary>
     [HttpGet("attendance")]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<IEnumerable<AttendanceReportDto>>> GetAttendanceReport([FromQuery] ReportFilterDto filter)
     {
         var report = await _reportService.GetAttendanceReportAsync(filter);
@@ -38,7 +38,7 @@ public class ReportController : ControllerBase
 
     /// <summary>Reporte de horas extra por período (HU-10.2)</summary>
     [HttpGet("overtime")]
-    [Authorize(Roles = "Admin,RRHH")]
+    [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<IEnumerable<OvertimeReportDto>>> GetOvertimeReport([FromQuery] ReportFilterDto filter)
     {
         var report = await _reportService.GetOvertimeReportAsync(filter);
@@ -47,7 +47,7 @@ public class ReportController : ControllerBase
 
     /// <summary>Reporte consolidado de planilla (HU-10.3)</summary>
     [HttpGet("payroll/{payrollId}")]
-    [Authorize(Roles = "Admin,RRHH")]
+   [Authorize(Roles = "Admin,Administrador,RRHH")]
     public async Task<ActionResult<PayrollSummaryReportDto>> GetPayrollReport(int payrollId)
     {
         var report = await _reportService.GetPayrollReportAsync(payrollId);

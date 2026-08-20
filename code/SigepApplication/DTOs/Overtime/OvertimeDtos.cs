@@ -18,6 +18,8 @@ public class OvertimeRecordDto
     public string? ReviewedByName { get; set; }
     public DateTime? ReviewedAt { get; set; }
     public string? ReviewComments { get; set; }
+    public string? Justification { get; set; }
+    public DateTime? JustifiedAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
@@ -25,6 +27,11 @@ public class ReviewOvertimeDto
 {
     public bool Approve { get; set; }
     public string? Comments { get; set; }
+}
+
+public class JustifyOvertimeDto
+{
+    public string Justification { get; set; } = string.Empty;
 }
 
 public class OvertimeFilterDto

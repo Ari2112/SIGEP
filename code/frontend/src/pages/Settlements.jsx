@@ -3,6 +3,8 @@ import { settlementAPI, employeeAPI } from '../api/api';
 import Layout from '../components/Layout';
 import './Settlements.css';
 
+const API_URL = 'http://localhost:5017/api/v1';
+
 const TERMINATION_TYPES = {
   1: 'Renuncia',
   2: 'Despido con responsabilidad',
@@ -45,12 +47,19 @@ function Settlements() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [settRes, empRes] = await Promise.all([
-        settlementAPI.getAll(),
-        employeeAPI.getAll()
-      ]);
-      setSettlements(settRes.data);
-      setEmployees(empRes.data.filter(e => e.status === 'Activo' || e.status === 1));
+      setError('');
+
+      // Cargar empleados siempre (independiente de liquidaciones)
+      const empRes = await employeeAPI.getAll();
+      setEmployees((empRes.data || []).filter(e => e.status === 'Activo'));
+
+      // Cargar liquidaciones por separado para no bloquear si falla
+      try {
+        const settRes = await settlementAPI.getAll();
+        setSettlements(settRes.data || []);
+      } catch (err) {
+        setError('Error al cargar liquidaciones: ' + (err.response?.data?.message || err.message));
+      }
     } catch (err) {
       setError('Error al cargar datos: ' + (err.response?.data?.message || err.message));
     } finally {
@@ -131,6 +140,23 @@ function Settlements() {
     }
   };
 
+  const downloadPdf = (settlementId, employeeName) => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_URL}/settlement/${settlementId}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Liquidacion_${employeeName?.replace(/ /g, '_') || settlementId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => setError('Error al generar PDF de liquidación'));
+  };
+
   const formatCurrency = (v) => new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 0 }).format(v || 0);
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-CR') : '-';
 
@@ -159,10 +185,10 @@ function Settlements() {
                 <th>Empleado</th>
                 <th>Tipo</th>
                 <th>Fecha Term.</th>
-                <th>Años Trab.</th>
-                <th>Vac. Pendientes</th>
-                <th>Indemnización</th>
-                <th>Total Neto</th>
+                <th className="num">Años Trab.</th>
+                <th className="num">Vac. Pendientes</th>
+                <th className="num">Indemnización</th>
+                <th className="num">Total Neto</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -176,16 +202,17 @@ function Settlements() {
                     <td><strong>{s.employeeName}</strong></td>
                     <td><span className="badge badge-info">{TERMINATION_TYPES[s.terminationType] || s.terminationType}</span></td>
                     <td>{formatDate(s.terminationDate)}</td>
-                    <td>{s.workedYears} años {s.workedMonths} meses</td>
-                    <td>{s.pendingVacationDays} días</td>
-                    <td>{formatCurrency(s.severanceAmount)}</td>
-                    <td><strong>{formatCurrency(s.netTotal)}</strong></td>
+                    <td className="num">{s.workedYears} años {s.workedMonths} meses</td>
+                    <td className="num">{s.pendingVacationDays} días</td>
+                    <td className="num">{formatCurrency(s.severanceAmount)}</td>
+                    <td className="num"><strong>{formatCurrency(s.netTotal)}</strong></td>
                     <td><span className={`badge ${STATUS_COLORS[s.status] || 'badge-secondary'}`}>{s.status}</span></td>
                     <td>
                       <button className="btn btn-sm btn-ghost" onClick={() => handleViewDetail(s.id)}>Ver</button>
                       {s.status === 'Calculada' && (
                         <button className="btn btn-sm btn-success" onClick={() => handleApprove(s.id)}>Aprobar</button>
                       )}
+                      <button className="btn btn-sm btn-primary" onClick={() => downloadPdf(s.id, s.employeeName)}>PDF</button>
                     </td>
                   </tr>
                 ))
@@ -277,13 +304,19 @@ function Settlements() {
                   <span>{formatCurrency(selected.vacationAmount)}</span>
                 </div>
                 <div className="breakdown-row">
-                  <span>Aguinaldo proporcional</span>
-                  <span>{formatCurrency(selected.proportionalBonus)}</span>
-                </div>
-                <div className="breakdown-row">
-                  <span>Indemnización / Preaviso</span>
-                  <span>{formatCurrency(selected.severanceAmount)}</span>
-                </div>
+  <span>Aguinaldo proporcional</span>
+  <span>{formatCurrency(selected.proportionalBonus)}</span>
+</div>
+{selected.noticeAmount > 0 && (
+  <div className="breakdown-row">
+    <span>Preaviso (Art. 28 Cód. Trabajo)</span>
+    <span>{formatCurrency(selected.noticeAmount)}</span>
+  </div>
+)}
+<div className="breakdown-row">
+  <span>Cesantía / Auxilio de cesantía</span>
+  <span>{formatCurrency(selected.severanceAmount)}</span>
+</div>
                 {selected.deductions?.map(d => (
                   <div key={d.id} className="breakdown-row deduction">
                     <span>(-) {d.description}</span>
@@ -301,6 +334,9 @@ function Settlements() {
               </div>
               <div className="modal-actions">
                 <button className="btn btn-secondary" onClick={() => setShowDetail(false)}>Cerrar</button>
+                <button className="btn btn-primary" onClick={() => downloadPdf(selected.id, selected.employeeName)}>
+                  Descargar PDF
+                </button>
                 {selected.status === 'Calculada' && (
                   <button className="btn btn-success" onClick={() => handleApprove(selected.id)}>Aprobar</button>
                 )}

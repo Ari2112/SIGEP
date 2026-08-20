@@ -40,11 +40,11 @@
 .sidebar-logo {
   font-size: var(--text-xl);
   font-weight: var(--fw-bold);
-  background: var(--grad-brand);
+  background: linear-gradient(100deg, #FFFFFF 0%, #FFFFFF 45%, #B8E986 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.06em;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -101,18 +101,21 @@
 }
 
 .nav-item.active {
-  background: rgba(125, 194, 33, 0.20);
+  background: rgba(46, 158, 69, 0.22);
   border-left: 3px solid var(--c-primary);
   color: white;
   padding-left: calc(var(--sp-3) - 3px);
 }
 
 .nav-icon {
-  font-size: 1rem;
-  width: 20px;
-  text-align: center;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
+.nav-icon svg { display: block; }
 
 .nav-label {
   overflow: hidden;
@@ -192,7 +195,9 @@
   border: none;
   border-radius: var(--r);
   color: var(--c-header-link);
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
   cursor: pointer;

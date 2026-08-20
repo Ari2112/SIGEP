@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using SigepApplication.DTOs.Employees;
 using SigepApplication.Interfaces;
 using SigepDomain.Entities;
-using SigepDomain.Enums;
 using SigepInfrastructure.Persistence;
 
 namespace SigepInfrastructure.Services;
@@ -20,32 +19,51 @@ public class EmployeeService : IEmployeeService
 
     public async Task<IEnumerable<EmployeeDto>> GetAllAsync()
     {
-        return await _context.Employees
+        var employees = await _context.Employees
             .Include(e => e.Position)
             .Include(e => e.Schedule)
+            .Include(e => e.EmployeeStatus)
+            .Include(e => e.EmployeePhones)
+            .Include(e => e.EmployeeAddresses)
             .OrderBy(e => e.LastName)
-            .Select(e => MapToDto(e))
             .ToListAsync();
+
+        return employees.Select(MapToDto);
     }
 
     public async Task<EmployeeDto?> GetByIdAsync(int id)
     {
-        var e = await _context.Employees
+        var employee = await _context.Employees
             .Include(e => e.Position)
             .Include(e => e.Schedule)
+            .Include(e => e.EmployeeStatus)
+            .Include(e => e.EmployeePhones)
+            .Include(e => e.EmployeeAddresses)
             .FirstOrDefaultAsync(e => e.Id == id);
 
-        return e == null ? null : MapToDto(e);
+        return employee == null ? null : MapToDto(employee);
     }
 
     public async Task<EmployeeDto> CreateAsync(CreateEmployeeDto dto, int createdByUserId)
     {
-        // Validar cédula única
         if (await _context.Employees.AnyAsync(e => e.IdentificationNumber == dto.IdentificationNumber))
             throw new InvalidOperationException("Ya existe un empleado con ese número de identificación");
 
         if (await _context.Employees.AnyAsync(e => e.Email == dto.Email))
             throw new InvalidOperationException("Ya existe un empleado con ese correo electrónico");
+
+        // Si se van a crear credenciales, validar el usuario ANTES de crear el
+        // empleado, para no dejar un empleado a medias si el usuario ya existe.
+        if (!string.IsNullOrWhiteSpace(dto.Username))
+        {
+            if (string.IsNullOrWhiteSpace(dto.Password))
+                throw new InvalidOperationException("Debe indicar una contraseña para el usuario");
+
+            if (await _context.Users.AnyAsync(u => u.Username == dto.Username))
+                throw new InvalidOperationException($"El usuario '{dto.Username}' ya existe en el sistema");
+        }
+
+        var activeStatus = await GetEmployeeStatusAsync("Activo");
 
         var employee = new Employee
         {
@@ -53,8 +71,6 @@ public class EmployeeService : IEmployeeService
             LastName = dto.LastName,
             IdentificationNumber = dto.IdentificationNumber,
             Email = dto.Email,
-            Phone = dto.Phone,
-            Address = dto.Address,
             BirthDate = dto.BirthDate,
             HireDate = dto.HireDate,
             BaseSalary = dto.BaseSalary,
@@ -62,30 +78,56 @@ public class EmployeeService : IEmployeeService
             ScheduleId = dto.ScheduleId,
             SupervisorId = dto.SupervisorId,
             VacationDaysPerYear = dto.VacationDaysPerYear,
-            Status = EmployeeStatus.Activo,
+            EmployeeStatusId = activeStatus.Id,
             CreatedAt = DateTime.UtcNow
         };
 
         _context.Employees.Add(employee);
         await _context.SaveChangesAsync();
 
-        // Crear usuario si se proveen credenciales
+        // Teléfono y dirección son opcionales — no bloquean la creación
+        try { await SavePrimaryPhoneAsync(employee.Id, dto.Phone); } catch { }
+        try { await SavePrimaryAddressAsync(employee.Id, dto.Address); } catch { }
+        await _context.SaveChangesAsync();
+
+        // El empleado inicia con 0 días de vacaciones disponibles (los acumula
+        // con el tiempo). Se crea el saldo del año de ingreso en CERO para que
+        // no se otorgue el año completo automáticamente al consultarlo.
+        var hireYear = dto.HireDate.Year;
+        var balanceExists = await _context.VacationBalances
+            .AnyAsync(vb => vb.EmployeeId == employee.Id && vb.Year == hireYear);
+
+        if (!balanceExists)
+        {
+            _context.VacationBalances.Add(new VacationBalance
+            {
+                EmployeeId = employee.Id,
+                Year = hireYear,
+                TotalDays = 0,
+                UsedDays = 0,
+                PendingDays = 0,
+                CarriedOverDays = 0,
+                ExpirationDate = new DateTime(hireYear, 12, 31),
+                CreatedAt = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync();
+        }
+
         if (!string.IsNullOrWhiteSpace(dto.Username) && !string.IsNullOrWhiteSpace(dto.Password))
         {
-            var role = dto.UserRole?.ToLower() switch
-            {
-                "admin" => UserRole.Admin,
-                "rrhh" => UserRole.RRHH,
-                "jefatura" => UserRole.Jefatura,
-                _ => UserRole.Empleado
-            };
+            // Verificar que el username no esté duplicado
+            if (await _context.Users.AnyAsync(u => u.Username == dto.Username))
+                throw new InvalidOperationException($"El usuario '{dto.Username}' ya existe en el sistema");
+
+            var roleName = NormalizeRoleName(dto.UserRole);
+            var role = await GetUserRoleAsync(roleName);
 
             var user = new User
             {
                 Username = dto.Username,
                 Email = dto.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Role = role,
+                RoleId = role.Id,
                 EmployeeId = employee.Id,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
@@ -95,43 +137,76 @@ public class EmployeeService : IEmployeeService
             await _context.SaveChangesAsync();
         }
 
-        await _auditService.LogAsync(createdByUserId, "CREATE", "EMPLEADOS", "Employee", employee.Id,
-            description: $"Nuevo empleado creado: {employee.FirstName} {employee.LastName}");
+        await _auditService.LogAsync(
+            createdByUserId,
+            "CREATE",
+            "EMPLEADOS",
+            "Employee",
+            employee.Id,
+            description: $"Nuevo empleado creado: {employee.FirstName} {employee.LastName}"
+        );
 
         return await GetByIdAsync(employee.Id) ?? throw new Exception("Error al crear empleado");
     }
 
     public async Task<EmployeeDto> UpdateAsync(int id, UpdateEmployeeDto dto, int updatedByUserId)
     {
-        var employee = await _context.Employees.FindAsync(id);
+        var employee = await _context.Employees
+            .Include(e => e.EmployeePhones)
+            .Include(e => e.EmployeeAddresses)
+            .FirstOrDefaultAsync(e => e.Id == id);
+
         if (employee == null)
             throw new ArgumentException("Empleado no encontrado");
 
         if (await _context.Employees.AnyAsync(e => e.Email == dto.Email && e.Id != id))
             throw new InvalidOperationException("Ya existe otro empleado con ese correo electrónico");
 
-        var oldValues = new { employee.FirstName, employee.LastName, employee.BaseSalary, employee.Status };
+        var status = await GetEmployeeStatusAsync(dto.Status);
+
+        var oldValues = new
+        {
+            employee.FirstName,
+            employee.LastName,
+            employee.BaseSalary,
+            employee.EmployeeStatusId
+        };
 
         employee.FirstName = dto.FirstName;
         employee.LastName = dto.LastName;
         employee.Email = dto.Email;
-        employee.Phone = dto.Phone;
-        employee.Address = dto.Address;
         employee.BirthDate = dto.BirthDate;
         employee.BaseSalary = dto.BaseSalary;
         employee.PositionId = dto.PositionId;
         employee.ScheduleId = dto.ScheduleId;
         employee.SupervisorId = dto.SupervisorId;
         employee.VacationDaysPerYear = dto.VacationDaysPerYear;
-        employee.Status = Enum.Parse<EmployeeStatus>(dto.Status);
+        employee.EmployeeStatusId = status.Id;
         employee.UpdatedAt = DateTime.UtcNow;
+
+        await SavePrimaryPhoneAsync(employee.Id, dto.Phone);
+        await SavePrimaryAddressAsync(employee.Id, dto.Address);
 
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(updatedByUserId, "UPDATE", "EMPLEADOS", "Employee", id,
+        var newValues = new
+        {
+            employee.FirstName,
+            employee.LastName,
+            employee.BaseSalary,
+            employee.EmployeeStatusId
+        };
+
+        await _auditService.LogAsync(
+            updatedByUserId,
+            "UPDATE",
+            "EMPLEADOS",
+            "Employee",
+            id,
             oldValues: oldValues,
-            newValues: new { employee.FirstName, employee.LastName, employee.BaseSalary, employee.Status },
-            description: $"Empleado actualizado: {employee.FirstName} {employee.LastName}");
+            newValues: newValues,
+            description: $"Empleado actualizado: {employee.FirstName} {employee.LastName}"
+        );
 
         return await GetByIdAsync(id) ?? throw new Exception("Error al actualizar empleado");
     }
@@ -139,16 +214,25 @@ public class EmployeeService : IEmployeeService
     public async Task DeactivateAsync(int id, int updatedByUserId)
     {
         var employee = await _context.Employees.FindAsync(id);
+
         if (employee == null)
             throw new ArgumentException("Empleado no encontrado");
 
-        employee.Status = EmployeeStatus.Inactivo;
+        var inactiveStatus = await GetEmployeeStatusAsync("Inactivo");
+
+        employee.EmployeeStatusId = inactiveStatus.Id;
         employee.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(updatedByUserId, "DEACTIVATE", "EMPLEADOS", "Employee", id,
-            description: $"Empleado desactivado: {employee.FirstName} {employee.LastName}");
+        await _auditService.LogAsync(
+            updatedByUserId,
+            "DEACTIVATE",
+            "EMPLEADOS",
+            "Employee",
+            id,
+            description: $"Empleado desactivado: {employee.FirstName} {employee.LastName}"
+        );
     }
 
     // === PUESTOS ===
@@ -197,19 +281,38 @@ public class EmployeeService : IEmployeeService
 
     public async Task<IEnumerable<ScheduleDto>> GetAllSchedulesAsync()
     {
-        return await _context.Schedules
+        var schedules = await _context.Schedules
             .Where(s => s.IsActive)
-            .OrderBy(s => s.Name)
-            .Select(s => new ScheduleDto
-            {
-                Id = s.Id,
-                Name = s.Name,
-                StartTime = s.StartTime.ToString(@"hh\:mm"),
-                EndTime = s.EndTime.ToString(@"hh\:mm"),
-                WorkHoursPerDay = s.WorkHoursPerDay,
-                IsActive = s.IsActive
-            })
+            .OrderBy(s => s.StartTime)
             .ToListAsync();
+
+        return schedules.Select(s => new ScheduleDto
+        {
+            Id = s.Id,
+            Name = s.Name,
+            StartTime = s.StartTime.ToString(@"hh\:mm"),
+            EndTime = s.EndTime.ToString(@"hh\:mm"),
+            WorkHoursPerDay = s.WorkHoursPerDay,
+            IsActive = s.IsActive
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Construye una etiqueta de turno a partir del horario, en formato
+    /// costarricense de 12 horas. Ej: "7:00 a.m. - 5:00 p.m.".
+    /// </summary>
+    public static string FormatScheduleLabel(TimeSpan start, TimeSpan end)
+    {
+        string To12h(TimeSpan t)
+        {
+            int h = t.Hours;
+            int m = t.Minutes;
+            string suffix = h >= 12 ? "p.m." : "a.m.";
+            int h12 = h % 12;
+            if (h12 == 0) h12 = 12;
+            return $"{h12}:{m:00} {suffix}";
+        }
+        return $"{To12h(start)} - {To12h(end)}";
     }
 
     public async Task<ScheduleDto> CreateScheduleAsync(CreateScheduleDto dto)
@@ -238,8 +341,49 @@ public class EmployeeService : IEmployeeService
         };
     }
 
+    // === GEOGRAFÍA COSTA RICA ===
+
+    public async Task<IEnumerable<GeoItemDto>> GetProvincesAsync()
+    {
+        return await _context.Provinces
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.Name)
+            .Select(p => new GeoItemDto { Id = p.Id, Name = p.Name })
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<GeoItemDto>> GetCantonsByProvinceAsync(int provinceId)
+    {
+        return await _context.Cantons
+            .Where(c => c.ProvinceId == provinceId && c.IsActive)
+            .OrderBy(c => c.Name)
+            .Select(c => new GeoItemDto { Id = c.Id, Name = c.Name })
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<GeoItemDto>> GetDistrictsByCantonAsync(int cantonId)
+    {
+        return await _context.Districts
+            .Where(d => d.CantonId == cantonId && d.IsActive)
+            .OrderBy(d => d.Name)
+            .Select(d => new GeoItemDto { Id = d.Id, Name = d.Name })
+            .ToListAsync();
+    }
+
+    // === MÉTODOS AUXILIARES ===
+
     private static EmployeeDto MapToDto(Employee e)
     {
+        var primaryPhone = e.EmployeePhones?
+            .Where(p => p.IsActive)
+            .OrderByDescending(p => p.IsPrimary)
+            .FirstOrDefault();
+
+        var primaryAddress = e.EmployeeAddresses?
+            .Where(a => a.IsActive)
+            .OrderByDescending(a => a.IsPrimary)
+            .FirstOrDefault();
+
         return new EmployeeDto
         {
             Id = e.Id,
@@ -247,18 +391,175 @@ public class EmployeeService : IEmployeeService
             LastName = e.LastName,
             IdentificationNumber = e.IdentificationNumber,
             Email = e.Email,
-            Phone = e.Phone,
-            Address = e.Address,
+            Phone = primaryPhone?.PhoneNumber,
+            Address = primaryAddress?.ExactAddress,
             BirthDate = e.BirthDate,
             HireDate = e.HireDate,
             BaseSalary = e.BaseSalary,
-            Status = e.Status.ToString(),
+            Status = e.EmployeeStatus?.Name ?? string.Empty,
             PositionId = e.PositionId,
             PositionName = e.Position?.Name,
             ScheduleId = e.ScheduleId,
-            ScheduleName = e.Schedule?.Name,
+            ScheduleName = e.Schedule != null
+                ? FormatScheduleLabel(e.Schedule.StartTime, e.Schedule.EndTime)
+                : null,
             VacationDaysPerYear = e.VacationDaysPerYear,
             CreatedAt = e.CreatedAt
         };
     }
+
+    private async Task<EmployeeStatus> GetEmployeeStatusAsync(string? statusName)
+    {
+        var name = string.IsNullOrWhiteSpace(statusName) ? "Activo" : statusName.Trim();
+
+        var status = await _context.EmployeeStatuses
+            .FirstOrDefaultAsync(s => s.Name == name);
+
+        if (status != null)
+            return status;
+
+        var activeStatus = await _context.EmployeeStatuses
+            .FirstOrDefaultAsync(s => s.Name == "Activo");
+
+        if (activeStatus != null)
+            return activeStatus;
+
+        throw new InvalidOperationException("No existe el catálogo de estados de empleado");
+    }
+
+    private async Task<UserRole> GetUserRoleAsync(string roleName)
+    {
+        var role = await _context.UserRoles
+            .FirstOrDefaultAsync(r => r.Name == roleName);
+
+        if (role != null)
+            return role;
+
+        var empleadoRole = await _context.UserRoles
+            .FirstOrDefaultAsync(r => r.Name == "Empleado");
+
+        if (empleadoRole != null)
+            return empleadoRole;
+
+        throw new InvalidOperationException("No existe el catálogo de roles de usuario");
+    }
+
+    private static string NormalizeRoleName(string? userRole)
+    {
+        var value = userRole?.Trim().ToLower();
+
+        return value switch
+        {
+            "admin" => "Admin",
+            "administrador" => "Admin",
+            "rrhh" => "RRHH",
+            "recursos humanos" => "RRHH",
+            "jefatura" => "Jefatura",
+            "jefe" => "Jefatura",
+            _ => "Empleado"
+        };
+    }
+
+    private async Task SavePrimaryPhoneAsync(int employeeId, string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            return;
+
+        var phoneType = await _context.PhoneTypes
+            .FirstOrDefaultAsync(pt => pt.Name == "Personal");
+
+        if (phoneType == null)
+            throw new InvalidOperationException("No existe el tipo de teléfono Personal");
+
+        var currentPhone = await _context.EmployeePhones
+            .FirstOrDefaultAsync(ep => ep.EmployeeId == employeeId && ep.IsPrimary);
+
+        if (currentPhone == null)
+        {
+            _context.EmployeePhones.Add(new EmployeePhone
+            {
+                EmployeeId = employeeId,
+                PhoneTypeId = phoneType.Id,
+                PhoneNumber = phone,
+                IsPrimary = true,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            currentPhone.PhoneNumber = phone;
+            currentPhone.PhoneTypeId = phoneType.Id;
+            currentPhone.IsActive = true;
+            currentPhone.UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
+    private async Task SavePrimaryAddressAsync(int employeeId, string? address)
+    {
+        // La dirección es completamente opcional
+        if (string.IsNullOrWhiteSpace(address))
+            return;
+
+        // Buscar tipo de dirección — si no existe, crearlo automáticamente
+        var addressType = await _context.AddressTypes
+            .FirstOrDefaultAsync(at => at.Name == "Casa")
+            ?? await CreateAddressTypeAsync("Casa");
+
+        // Usar primera provincia/cantón/distrito disponible como fallback
+        var province = await _context.Provinces.FirstOrDefaultAsync();
+        if (province == null) return; // Sin provincias, omitir dirección
+
+        var canton = await _context.Cantons
+            .FirstOrDefaultAsync(c => c.ProvinceId == province.Id);
+        if (canton == null) return;
+
+        var district = await _context.Districts
+            .FirstOrDefaultAsync(d => d.CantonId == canton.Id);
+        if (district == null) return;
+
+        var currentAddress = await _context.EmployeeAddresses
+            .FirstOrDefaultAsync(ea => ea.EmployeeId == employeeId && ea.IsPrimary);
+
+        if (currentAddress == null)
+        {
+            _context.EmployeeAddresses.Add(new EmployeeAddress
+            {
+                EmployeeId = employeeId,
+                AddressTypeId = addressType.Id,
+                ProvinceId = province.Id,
+                CantonId = canton.Id,
+                DistrictId = district.Id,
+                ExactAddress = address,
+                IsPrimary = true,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            currentAddress.AddressTypeId = addressType.Id;
+            currentAddress.ProvinceId = province.Id;
+            currentAddress.CantonId = canton.Id;
+            currentAddress.DistrictId = district.Id;
+            currentAddress.ExactAddress = address;
+            currentAddress.IsActive = true;
+            currentAddress.UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
+    private async Task<AddressType> CreateAddressTypeAsync(string name)
+    {
+        var addressType = new AddressType
+        {
+            Name = name,
+            Description = name,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.AddressTypes.Add(addressType);
+        await _context.SaveChangesAsync();
+        return addressType;
+    }
+
 }

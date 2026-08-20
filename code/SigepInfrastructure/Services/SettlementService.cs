@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using SigepApplication.DTOs.Settlement;
 using SigepApplication.Interfaces;
 using SigepDomain.Entities;
-using SigepDomain.Enums;
 using SigepInfrastructure.Persistence;
 
 namespace SigepInfrastructure.Services;
@@ -13,7 +12,10 @@ public class SettlementService : ISettlementService
     private readonly IAuditService _auditService;
     private readonly INotificationService _notificationService;
 
-    public SettlementService(ApplicationDbContext context, IAuditService auditService, INotificationService notificationService)
+    public SettlementService(
+        ApplicationDbContext context,
+        IAuditService auditService,
+        INotificationService notificationService)
     {
         _context = context;
         _auditService = auditService;
@@ -23,7 +25,9 @@ public class SettlementService : ISettlementService
     public async Task<IEnumerable<SettlementDto>> GetAllAsync()
     {
         var settlements = await _context.Settlements
-            .Include(s => s.Employee).ThenInclude(e => e!.Position)
+            .Include(s => s.Employee)
+                .ThenInclude(e => e!.Position)
+            .Include(s => s.TerminationType)
             .Include(s => s.CalculatedBy)
             .Include(s => s.ApprovedBy)
             .Include(s => s.Deductions)
@@ -35,20 +39,24 @@ public class SettlementService : ISettlementService
 
     public async Task<SettlementDto?> GetByIdAsync(int id)
     {
-        var s = await _context.Settlements
-            .Include(s => s.Employee).ThenInclude(e => e!.Position)
+        var settlement = await _context.Settlements
+            .Include(s => s.Employee)
+                .ThenInclude(e => e!.Position)
+            .Include(s => s.TerminationType)
             .Include(s => s.CalculatedBy)
             .Include(s => s.ApprovedBy)
             .Include(s => s.Deductions)
             .FirstOrDefaultAsync(s => s.Id == id);
 
-        return s == null ? null : MapToDto(s);
+        return settlement == null ? null : MapToDto(settlement);
     }
 
     public async Task<SettlementDto?> GetByEmployeeAsync(int employeeId)
     {
-        var s = await _context.Settlements
-            .Include(s => s.Employee).ThenInclude(e => e!.Position)
+        var settlement = await _context.Settlements
+            .Include(s => s.Employee)
+                .ThenInclude(e => e!.Position)
+            .Include(s => s.TerminationType)
             .Include(s => s.CalculatedBy)
             .Include(s => s.ApprovedBy)
             .Include(s => s.Deductions)
@@ -56,7 +64,7 @@ public class SettlementService : ISettlementService
             .OrderByDescending(s => s.CreatedAt)
             .FirstOrDefaultAsync();
 
-        return s == null ? null : MapToDto(s);
+        return settlement == null ? null : MapToDto(settlement);
     }
 
     public async Task<SettlementDto> CalculateAsync(CalculateSettlementDto dto, int userId)
@@ -66,50 +74,148 @@ public class SettlementService : ISettlementService
             .FirstOrDefaultAsync(e => e.Id == dto.EmployeeId)
             ?? throw new ArgumentException("Empleado no encontrado");
 
-        // Calcular tiempo trabajado
+        var terminationType = await _context.TerminationTypes
+            .FirstOrDefaultAsync(t => t.Id == dto.TerminationType);
+
+        if (terminationType == null)
+            throw new ArgumentException("Tipo de terminación no encontrado");
+
+        var existingSettlement = await _context.Settlements
+            .FirstOrDefaultAsync(s =>
+                s.EmployeeId == dto.EmployeeId &&
+                s.Status != SettlementStatus.Anulada);
+
+        if (existingSettlement != null)
+            throw new InvalidOperationException("Ya existe una liquidación activa para este empleado");
+
         var hireDate = employee.HireDate;
         var terminationDate = dto.TerminationDate;
+
+        if (terminationDate < hireDate)
+            throw new InvalidOperationException("La fecha de terminación no puede ser anterior a la fecha de ingreso");
+
+        // Tiempo trabajado (años, meses, días) entre la fecha de ingreso y la de
+        // terminación. Se calcula la diferencia de meses de calendario y luego se
+        // valida contra la diferencia real de días: si el día de terminación cae
+        // antes que el día de ingreso dentro del mes (ej. ingresó el 28 y terminó
+        // el 8), hay que "pedir prestado" un mes, igual que restando fechas a mano.
+        // Sin este ajuste, totalMonths queda inflado en 1 y eso afecta también los
+        // tramos de preaviso y cesantía más abajo, que dependen de este mismo valor.
         var totalMonths = (terminationDate.Year - hireDate.Year) * 12 + terminationDate.Month - hireDate.Month;
+        var workedDays = (terminationDate - hireDate.AddMonths(totalMonths)).Days;
+        if (workedDays < 0)
+        {
+            totalMonths--;
+            workedDays = (terminationDate - hireDate.AddMonths(totalMonths)).Days;
+        }
         var workedYears = totalMonths / 12;
         var workedMonths = totalMonths % 12;
-        var workedDays = (terminationDate - hireDate.AddMonths(totalMonths)).Days;
 
-        // Días de vacaciones pendientes
         var currentYear = terminationDate.Year;
+
         var vacBalance = await _context.VacationBalances
             .FirstOrDefaultAsync(v => v.EmployeeId == dto.EmployeeId && v.Year == currentYear);
+
         decimal pendingVacDays = vacBalance?.AvailableDays ?? 0;
 
         decimal lastSalary = employee.BaseSalary;
         decimal dailySalary = lastSalary / 30;
 
-        // Vacaciones pendientes en dinero
         decimal vacationAmount = pendingVacDays * dailySalary;
 
-        // Aguinaldo proporcional (salario anual / 12 * meses trabajados en el año)
-        int monthsThisYear = terminationDate.Month;
-        decimal proportionalBonus = (lastSalary / 12) * monthsThisYear;
+// === Aguinaldo proporcional - Ley No. 2412 / MTSS ===
+// El periodo legal del aguinaldo va del 1 de diciembre del año anterior
+// al 30 de noviembre del año en curso, y se paga 1/12 de lo devengado
+// en ese periodo. Aquí contamos SOLO los días realmente laborados dentro
+// del periodo: desde la fecha de ingreso (o el 1 de diciembre, lo que sea
+// más reciente) hasta la fecha de terminación. Nunca se usa el número de
+// mes del calendario, porque eso ignora cuándo entró la persona.
 
-        // Preaviso e indemnización según tipo de despido
-        var terminationType = (TerminationType)dto.TerminationType;
-        decimal severance = 0;
+// Año en que arranca el periodo de aguinaldo que contiene la terminación.
+// Si la terminación es en diciembre, el periodo arrancó ese mismo año;
+// en cualquier otro mes, arrancó el 1 de diciembre del año anterior.
+int aguinaldoPeriodStartYear = terminationDate.Month == 12
+    ? terminationDate.Year
+    : terminationDate.Year - 1;
+var aguinaldoPeriodStart = new DateTime(aguinaldoPeriodStartYear, 12, 1);
 
-        if (terminationType == TerminationType.DespidoConResponsabilidad || terminationType == TerminationType.MutuoAcuerdo)
+// Inicio real de acumulación: lo más reciente entre el ingreso y el periodo.
+var bonusAccrualStart = hireDate > aguinaldoPeriodStart ? hireDate : aguinaldoPeriodStart;
+
+// Días laborados dentro del periodo (nunca negativo).
+int bonusDaysWorked = Math.Max(0, (terminationDate - bonusAccrualStart).Days);
+
+// Aguinaldo = salario mensual * (días trabajados / 360).
+// Equivale a (salario diario) * días / 12, es decir, lo devengado / 12.
+decimal proportionalBonus = Math.Round(lastSalary * bonusDaysWorked / 360m, 2);
+
+// Preaviso - Art. 28 Código de Trabajo de Costa Rica
+// Corrección: a partir de 1 año de servicio el preaviso SIEMPRE es de
+// 1 mes (30 días), sin importar si la persona lleva 2, 8 o 20 años.
+// La ley no lo va aumentando con la antigüedad (antes este código sí
+// lo hacía, llegando hasta 60 días, lo cual no corresponde al Art. 28).
+decimal noticeAmount = 0;
+
+if (terminationType.HasSeverance || terminationType.Name.Contains("Responsabilidad"))
+{
+    int noticeDays = totalMonths switch
+    {
+        < 3 => 0,
+        < 6 => 7,
+        < 12 => 15,
+        _ => 30
+    };
+    noticeAmount = Math.Round(dailySalary * noticeDays, 2);
+}
+
+decimal severance = 0;
+
+        if (terminationType.HasSeverance)
         {
-            // Indemnización: 1 mes por año trabajado (simplificado)
-            severance = lastSalary * workedYears;
-            if (workedYears == 0 && totalMonths >= 3)
-                severance = lastSalary * 0.5m;
+            // Cesantía según Art. 29 Código de Trabajo CR (tabla oficial).
+            // Corrección: la cesantía es ACUMULATIVA/PROGRESIVA. Cada año
+            // trabajado gana SU PROPIA tarifa de la tabla y esas tarifas
+            // se SUMAN (no se aplica la tarifa de un solo año a todos los
+            // años trabajados, como hacía este código antes). Máximo 8
+            // años reconocidos.
+            decimal dailySalaryForSeverance = lastSalary / 30m;
+
+            if (workedYears == 0)
+            {
+                // Menos de 1 año: tabla especial por meses (no por año).
+                // Antes había una línea que sobreescribía este resultado
+                // con "medio mes de salario" fijo para 3-11 meses; eso
+                // duplicaba el pago frente a la tabla real (7 o 14 días)
+                // y ya se quitó.
+                int partialYearDays = totalMonths switch
+                {
+                    < 3 => 0,
+                    < 6 => 7,
+                    _   => 14 // 6 a 11 meses
+                };
+                severance = Math.Round(dailySalaryForSeverance * partialYearDays, 2);
+            }
+            else
+            {
+                decimal[] cesantiaDaysPerYear = { 19.5m, 20.0m, 20.5m, 21.0m, 21.24m, 21.5m, 22.0m, 22.0m };
+                int yearsForCalc = Math.Min(workedYears, 8);
+
+                decimal totalCesantiaDays = 0;
+                for (int y = 1; y <= yearsForCalc; y++)
+                    totalCesantiaDays += cesantiaDaysPerYear[y - 1];
+
+                severance = Math.Round(dailySalaryForSeverance * totalCesantiaDays, 2);
+            }
         }
 
         decimal totalDeductions = dto.AdditionalDeductions.Sum(d => d.Amount);
-        decimal grossTotal = vacationAmount + proportionalBonus + severance;
+        decimal grossTotal = vacationAmount + proportionalBonus + noticeAmount + severance;
         decimal netTotal = grossTotal - totalDeductions;
 
         var settlement = new Settlement
         {
             EmployeeId = dto.EmployeeId,
-            TerminationType = terminationType,
+            TerminationTypeId = terminationType.Id,
             HireDate = hireDate,
             TerminationDate = terminationDate,
             LastSalary = lastSalary,
@@ -120,6 +226,7 @@ public class SettlementService : ISettlementService
             PendingVacationDays = pendingVacDays,
             VacationAmount = vacationAmount,
             ProportionalBonus = proportionalBonus,
+            NoticeAmount = noticeAmount,
             SeveranceAmount = severance,
             OtherBenefits = 0,
             TotalDeductions = totalDeductions,
@@ -132,12 +239,12 @@ public class SettlementService : ISettlementService
             CreatedAt = DateTime.UtcNow
         };
 
-        foreach (var d in dto.AdditionalDeductions)
+        foreach (var deduction in dto.AdditionalDeductions)
         {
             settlement.Deductions.Add(new SettlementDeduction
             {
-                Description = d.Description,
-                Amount = d.Amount,
+                Description = deduction.Description,
+                Amount = deduction.Amount,
                 CreatedAt = DateTime.UtcNow
             });
         }
@@ -145,8 +252,14 @@ public class SettlementService : ISettlementService
         _context.Settlements.Add(settlement);
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(userId, "CALCULATE", "LIQUIDACIONES", "Settlement", settlement.Id,
-            description: $"Liquidación calculada para {employee.FullName}: Total neto {netTotal:C}");
+        await _auditService.LogAsync(
+            userId,
+            "CALCULATE",
+            "LIQUIDACIONES",
+            "Settlement",
+            settlement.Id,
+            description: $"Liquidación calculada para {employee.FullName}: Total neto {netTotal:C}"
+        );
 
         return (await GetByIdAsync(settlement.Id))!;
     }
@@ -166,8 +279,15 @@ public class SettlementService : ISettlementService
         settlement.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
-        await _auditService.LogAsync(userId, "APPROVE", "LIQUIDACIONES", "Settlement", id,
-            description: "Liquidación aprobada");
+
+        await _auditService.LogAsync(
+            userId,
+            "APPROVE",
+            "LIQUIDACIONES",
+            "Settlement",
+            id,
+            description: "Liquidación aprobada"
+        );
 
         return (await GetByIdAsync(id))!;
     }
@@ -183,55 +303,85 @@ public class SettlementService : ISettlementService
         settlement.Status = SettlementStatus.Pagada;
         settlement.UpdatedAt = DateTime.UtcNow;
 
-        // Marcar empleado como liquidado
         var employee = await _context.Employees.FindAsync(settlement.EmployeeId);
+
         if (employee != null)
         {
-            employee.Status = EmployeeStatus.Liquidado;
+            var liquidatedStatus = await GetEmployeeStatusForSettlementAsync();
+
+            employee.EmployeeStatusId = liquidatedStatus.Id;
             employee.TerminationDate = settlement.TerminationDate;
             employee.UpdatedAt = DateTime.UtcNow;
         }
 
         await _context.SaveChangesAsync();
-        await _auditService.LogAsync(userId, "PAY", "LIQUIDACIONES", "Settlement", id,
-            description: "Liquidación marcada como pagada");
+
+        await _auditService.LogAsync(
+            userId,
+            "PAY",
+            "LIQUIDACIONES",
+            "Settlement",
+            id,
+            description: "Liquidación marcada como pagada"
+        );
 
         return (await GetByIdAsync(id))!;
     }
 
-    private static SettlementDto MapToDto(Settlement s) => new()
+    private async Task<EmployeeStatus> GetEmployeeStatusForSettlementAsync()
     {
-        Id = s.Id,
-        EmployeeId = s.EmployeeId,
-        EmployeeName = s.Employee?.FullName ?? string.Empty,
-        TerminationType = s.TerminationType.ToString(),
-        HireDate = s.HireDate,
-        TerminationDate = s.TerminationDate,
-        LastSalary = s.LastSalary,
-        AverageSalary = s.AverageSalary,
-        WorkedYears = s.WorkedYears,
-        WorkedMonths = s.WorkedMonths,
-        WorkedDays = s.WorkedDays,
-        PendingVacationDays = s.PendingVacationDays,
-        VacationAmount = s.VacationAmount,
-        ProportionalBonus = s.ProportionalBonus,
-        SeveranceAmount = s.SeveranceAmount,
-        OtherBenefits = s.OtherBenefits,
-        TotalDeductions = s.TotalDeductions,
-        GrossTotal = s.GrossTotal,
-        NetTotal = s.NetTotal,
-        Status = s.Status.ToString(),
-        CalculatedByName = s.CalculatedBy?.Username ?? string.Empty,
-        CalculatedAt = s.CalculatedAt,
-        ApprovedByName = s.ApprovedBy?.Username,
-        ApprovedAt = s.ApprovedAt,
-        Notes = s.Notes,
-        CreatedAt = s.CreatedAt,
-        Deductions = s.Deductions.Select(d => new SettlementDeductionDto
+        var liquidatedStatus = await _context.EmployeeStatuses
+            .FirstOrDefaultAsync(s => s.Name == "Liquidado");
+
+        if (liquidatedStatus != null)
+            return liquidatedStatus;
+
+        var inactiveStatus = await _context.EmployeeStatuses
+            .FirstOrDefaultAsync(s => s.Name == "Inactivo");
+
+        if (inactiveStatus != null)
+            return inactiveStatus;
+
+        throw new InvalidOperationException("No existe estado de empleado Liquidado o Inactivo");
+    }
+
+    private static SettlementDto MapToDto(Settlement s)
+    {
+        return new SettlementDto
         {
-            Id = d.Id,
-            Description = d.Description,
-            Amount = d.Amount
-        }).ToList()
-    };
+            Id = s.Id,
+            EmployeeId = s.EmployeeId,
+            EmployeeName = s.Employee?.FullName ?? string.Empty,
+            TerminationType = s.TerminationType?.Name ?? string.Empty,
+            HireDate = s.HireDate,
+            TerminationDate = s.TerminationDate,
+            LastSalary = s.LastSalary,
+            AverageSalary = s.AverageSalary,
+            WorkedYears = s.WorkedYears,
+            WorkedMonths = s.WorkedMonths,
+            WorkedDays = s.WorkedDays,
+            PendingVacationDays = s.PendingVacationDays,
+            VacationAmount = s.VacationAmount,
+ProportionalBonus = s.ProportionalBonus,
+NoticeAmount = s.NoticeAmount,
+SeveranceAmount = s.SeveranceAmount,
+            OtherBenefits = s.OtherBenefits,
+            TotalDeductions = s.TotalDeductions,
+            GrossTotal = s.GrossTotal,
+            NetTotal = s.NetTotal,
+            Status = s.Status.ToString(),
+            CalculatedByName = s.CalculatedBy?.Username ?? string.Empty,
+            CalculatedAt = s.CalculatedAt,
+            ApprovedByName = s.ApprovedBy?.Username,
+            ApprovedAt = s.ApprovedAt,
+            Notes = s.Notes,
+            CreatedAt = s.CreatedAt,
+            Deductions = s.Deductions.Select(d => new SettlementDeductionDto
+            {
+                Id = d.Id,
+                Description = d.Description,
+                Amount = d.Amount
+            }).ToList()
+        };
+    }
 }

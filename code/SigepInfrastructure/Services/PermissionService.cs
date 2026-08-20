@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using SigepApplication.DTOs.Permissions;
 using SigepApplication.Interfaces;
 using SigepDomain.Entities;
-using SigepDomain.Enums;
 using SigepInfrastructure.Persistence;
 
 namespace SigepInfrastructure.Services;
@@ -13,7 +12,10 @@ public class PermissionService : IPermissionService
     private readonly INotificationService _notificationService;
     private readonly IAuditService _auditService;
 
-    public PermissionService(ApplicationDbContext context, INotificationService notificationService, IAuditService auditService)
+    public PermissionService(
+        ApplicationDbContext context,
+        INotificationService notificationService,
+        IAuditService auditService)
     {
         _context = context;
         _notificationService = notificationService;
@@ -43,7 +45,9 @@ public class PermissionService : IPermissionService
     public async Task<PermissionTypeDto?> GetPermissionTypeByIdAsync(int typeId)
     {
         var pt = await _context.PermissionTypes.FindAsync(typeId);
-        if (pt == null) return null;
+
+        if (pt == null)
+            return null;
 
         return new PermissionTypeDto
         {
@@ -64,6 +68,7 @@ public class PermissionService : IPermissionService
         var request = await _context.PermissionRequests
             .Include(pr => pr.Employee)
             .Include(pr => pr.PermissionType)
+            .Include(pr => pr.RequestStatus)
             .Include(pr => pr.ApprovedByUser)
             .FirstOrDefaultAsync(pr => pr.Id == requestId);
 
@@ -75,25 +80,32 @@ public class PermissionService : IPermissionService
 
     public async Task<IEnumerable<PermissionRequestDto>> GetEmployeeRequestsAsync(int employeeId)
     {
-        return await _context.PermissionRequests
+        var requests = await _context.PermissionRequests
             .Include(pr => pr.Employee)
             .Include(pr => pr.PermissionType)
+            .Include(pr => pr.RequestStatus)
             .Include(pr => pr.ApprovedByUser)
             .Where(pr => pr.EmployeeId == employeeId)
             .OrderByDescending(pr => pr.CreatedAt)
-            .Select(pr => MapToDto(pr))
             .ToListAsync();
+
+        return requests.Select(MapToDto);
     }
 
     public async Task<IEnumerable<PermissionRequestDto>> GetPendingRequestsAsync()
     {
-        return await _context.PermissionRequests
+        var pendingStatus = await GetRequestStatusAsync("Pendiente");
+
+        var requests = await _context.PermissionRequests
             .Include(pr => pr.Employee)
             .Include(pr => pr.PermissionType)
-            .Where(pr => pr.Status == RequestStatus.Pendiente || pr.Status == RequestStatus.EnRevision)
+            .Include(pr => pr.RequestStatus)
+            .Include(pr => pr.ApprovedByUser)
+            .Where(pr => pr.RequestStatusId == pendingStatus.Id)
             .OrderBy(pr => pr.CreatedAt)
-            .Select(pr => MapToDto(pr))
             .ToListAsync();
+
+        return requests.Select(MapToDto);
     }
 
     public async Task<IEnumerable<PermissionRequestDto>> GetAllRequestsAsync(PermissionRequestFilterDto? filter = null)
@@ -101,97 +113,132 @@ public class PermissionService : IPermissionService
         var query = _context.PermissionRequests
             .Include(pr => pr.Employee)
             .Include(pr => pr.PermissionType)
+            .Include(pr => pr.RequestStatus)
             .Include(pr => pr.ApprovedByUser)
             .AsQueryable();
 
         if (filter != null)
         {
             if (filter.EmployeeId.HasValue)
+            {
                 query = query.Where(pr => pr.EmployeeId == filter.EmployeeId.Value);
-            
+            }
+
             if (filter.PermissionTypeId.HasValue)
+            {
                 query = query.Where(pr => pr.PermissionTypeId == filter.PermissionTypeId.Value);
-            
-            if (filter.Status.HasValue)
-                query = query.Where(pr => pr.Status == filter.Status.Value);
-            
+            }
+
+            if (filter.RequestStatusId.HasValue)
+            {
+                query = query.Where(pr => pr.RequestStatusId == filter.RequestStatusId.Value);
+            }
+
             if (filter.DateFrom.HasValue)
+            {
                 query = query.Where(pr => pr.StartDate >= filter.DateFrom.Value);
-            
+            }
+
             if (filter.DateTo.HasValue)
+            {
                 query = query.Where(pr => pr.StartDate <= filter.DateTo.Value);
+            }
         }
 
-        return await query
+        var requests = await query
             .OrderByDescending(pr => pr.CreatedAt)
-            .Select(pr => MapToDto(pr))
             .ToListAsync();
+
+        return requests.Select(MapToDto);
     }
 
     public async Task<PermissionRequestDto> CreateRequestAsync(CreatePermissionRequestDto dto, int userId)
     {
         var employee = await _context.Employees.FindAsync(dto.EmployeeId);
+
         if (employee == null)
             throw new ArgumentException("Empleado no encontrado");
 
         var permissionType = await _context.PermissionTypes.FindAsync(dto.PermissionTypeId);
+
         if (permissionType == null)
             throw new ArgumentException("Tipo de permiso no encontrado");
 
         if (!permissionType.IsActive)
             throw new InvalidOperationException("El tipo de permiso no está activo");
 
-        // Validar fechas
         if (dto.StartDate < DateTime.Today)
             throw new InvalidOperationException("La fecha de inicio no puede ser en el pasado");
 
-        // Calcular duración
-        decimal durationDays = 0;
+        decimal durationDays;
+        TimeSpan? parsedStartTime = null;
+        TimeSpan? parsedEndTime = null;
+
         if (dto.IsPartialDay)
         {
-            // Permiso parcial: calcular fracción del día
-            if (!dto.StartTime.HasValue || !dto.EndTime.HasValue)
+            if (string.IsNullOrWhiteSpace(dto.StartTime) || string.IsNullOrWhiteSpace(dto.EndTime))
                 throw new InvalidOperationException("Para permisos parciales debe especificar hora de inicio y fin");
-            
-            var duration = dto.EndTime.Value - dto.StartTime.Value;
-            durationDays = (decimal)duration.TotalHours / 8; // Asumiendo jornada de 8 horas
+
+            // El input HTML <input type="time"> envía "HH:mm" (ej. "09:00") sin segundos.
+            // TimeSpan.TryParse acepta ese formato, a diferencia del deserializador JSON de TimeSpan.
+            if (!TimeSpan.TryParse(dto.StartTime, out var startTime) ||
+                !TimeSpan.TryParse(dto.EndTime, out var endTime))
+                throw new InvalidOperationException("El formato de la hora no es válido");
+
+            if (endTime <= startTime)
+                throw new InvalidOperationException("La hora de fin debe ser posterior a la hora de inicio");
+
+            parsedStartTime = startTime;
+            parsedEndTime = endTime;
+
+            var duration = endTime - startTime;
+            durationDays = Math.Round((decimal)duration.TotalHours / 8m, 2);
         }
         else
         {
-            // Permiso de día completo
-            durationDays = (decimal)(dto.EndDate ?? dto.StartDate).Subtract(dto.StartDate).TotalDays + 1;
+            durationDays = (decimal)(dto.EndDate ?? dto.StartDate)
+                .Subtract(dto.StartDate)
+                .TotalDays + 1;
         }
 
-        // Verificar límite anual del tipo de permiso
+        var pendingStatus = await GetRequestStatusAsync("Pendiente");
+        var approvedStatus = await GetRequestStatusAsync("Aprobada");
+
         if (permissionType.MaxDaysPerYear.HasValue)
         {
             var usedThisYear = await _context.PermissionRequests
-                .Where(pr => pr.EmployeeId == dto.EmployeeId 
-                    && pr.PermissionTypeId == dto.PermissionTypeId
-                    && pr.StartDate.Year == dto.StartDate.Year
-                    && (pr.Status == RequestStatus.Aprobada || pr.Status == RequestStatus.Pendiente))
+                .Where(pr =>
+                    pr.EmployeeId == dto.EmployeeId &&
+                    pr.PermissionTypeId == dto.PermissionTypeId &&
+                    pr.StartDate.Year == dto.StartDate.Year &&
+                    (pr.RequestStatusId == approvedStatus.Id || pr.RequestStatusId == pendingStatus.Id))
                 .SumAsync(pr => pr.DurationDays);
 
             if (usedThisYear + durationDays > permissionType.MaxDaysPerYear.Value)
+            {
                 throw new InvalidOperationException(
                     $"Ha excedido el límite anual de {permissionType.MaxDaysPerYear} días para este tipo de permiso. " +
                     $"Usado: {usedThisYear}, Solicitado: {durationDays}");
+            }
         }
 
-        // Verificar solapamiento
         var overlappingRequest = await _context.PermissionRequests
-            .Where(pr => pr.EmployeeId == dto.EmployeeId 
-                && (pr.Status == RequestStatus.Pendiente || pr.Status == RequestStatus.Aprobada)
-                && pr.StartDate == dto.StartDate
-                && pr.IsPartialDay == dto.IsPartialDay)
+            .Where(pr =>
+                pr.EmployeeId == dto.EmployeeId &&
+                (pr.RequestStatusId == pendingStatus.Id || pr.RequestStatusId == approvedStatus.Id) &&
+                pr.StartDate == dto.StartDate &&
+                pr.IsPartialDay == dto.IsPartialDay)
             .FirstOrDefaultAsync();
 
         if (overlappingRequest != null && !dto.IsPartialDay)
             throw new InvalidOperationException("Ya existe una solicitud de permiso para la misma fecha");
 
-        // Validar documento si es requerido
-        if (permissionType.RequiresDocument && string.IsNullOrEmpty(dto.DocumentUrl))
-            throw new InvalidOperationException($"El tipo de permiso '{permissionType.Name}' requiere documento adjunto");
+        // Solo cita médica requiere comprobante obligatorio
+        bool isMedical = permissionType.Name.Contains("dica", StringComparison.OrdinalIgnoreCase) ||
+                         permissionType.Name.Contains("Cita", StringComparison.OrdinalIgnoreCase);
+
+        if (isMedical && string.IsNullOrEmpty(dto.DocumentUrl))
+            throw new InvalidOperationException("La cita médica requiere adjuntar el comprobante médico.");
 
         var request = new PermissionRequest
         {
@@ -199,26 +246,31 @@ public class PermissionService : IPermissionService
             PermissionTypeId = dto.PermissionTypeId,
             StartDate = dto.StartDate,
             EndDate = dto.EndDate ?? dto.StartDate,
-            StartTime = dto.StartTime,
-            EndTime = dto.EndTime,
+            StartTime = parsedStartTime,
+            EndTime = parsedEndTime,
             IsPartialDay = dto.IsPartialDay,
             DurationDays = durationDays,
             Reason = dto.Reason,
             DocumentUrl = dto.DocumentUrl,
-            Status = RequestStatus.Pendiente,
+            RequestStatusId = pendingStatus.Id,
             CreatedAt = DateTime.UtcNow
         };
 
         _context.PermissionRequests.Add(request);
         await _context.SaveChangesAsync();
 
-        // Auditoría
-        await _auditService.LogAsync(userId, "CREATE", "PERMISOS", "PermissionRequest", request.Id,
+        await _auditService.LogAsync(
+            userId,
+            "CREATE",
+            "PERMISOS",
+            "PermissionRequest",
+            request.Id,
             newValues: new { request.PermissionTypeId, request.StartDate, request.DurationDays },
-            description: $"Nueva solicitud de permiso: {permissionType.Name}");
+            description: $"Nueva solicitud de permiso: {permissionType.Name}"
+        );
 
-        // Notificar al supervisor
         var supervisorUser = await GetSupervisorUserAsync(employee.Id);
+
         if (supervisorUser != null)
         {
             await _notificationService.CreateNotificationAsync(
@@ -231,25 +283,31 @@ public class PermissionService : IPermissionService
                 request.Id);
         }
 
-        return await GetRequestByIdAsync(request.Id) ?? throw new Exception("Error al crear solicitud");
+        return await GetRequestByIdAsync(request.Id)
+            ?? throw new Exception("Error al crear solicitud");
     }
 
     public async Task<PermissionRequestDto> ApproveRequestAsync(int requestId, int approverUserId, string? comments = null)
     {
         var request = await _context.PermissionRequests
             .Include(pr => pr.Employee)
-                .ThenInclude(e => e.User)
+                .ThenInclude(e => e!.User)
             .Include(pr => pr.PermissionType)
+            .Include(pr => pr.RequestStatus)
             .FirstOrDefaultAsync(pr => pr.Id == requestId);
 
         if (request == null)
             throw new ArgumentException("Solicitud no encontrada");
 
-        if (request.Status != RequestStatus.Pendiente && request.Status != RequestStatus.EnRevision)
-            throw new InvalidOperationException("Solo se pueden aprobar solicitudes pendientes o en revisión");
+        var pendingStatus = await GetRequestStatusAsync("Pendiente");
+        var approvedStatus = await GetRequestStatusAsync("Aprobada");
 
-        var oldStatus = request.Status;
-        request.Status = RequestStatus.Aprobada;
+        if (request.RequestStatusId != pendingStatus.Id)
+            throw new InvalidOperationException("Solo se pueden aprobar solicitudes pendientes");
+
+        var oldStatusName = request.RequestStatus?.Name ?? string.Empty;
+
+        request.RequestStatusId = approvedStatus.Id;
         request.ApprovedByUserId = approverUserId;
         request.ApprovedAt = DateTime.UtcNow;
         request.ApproverComments = comments;
@@ -257,37 +315,52 @@ public class PermissionService : IPermissionService
 
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(approverUserId, "APPROVE", "PERMISOS", "PermissionRequest", requestId,
-            oldValues: new { Status = oldStatus.ToString() },
-            newValues: new { Status = RequestStatus.Aprobada.ToString() },
-            description: $"Permiso aprobado: {request.PermissionType?.Name}");
+        await _auditService.LogAsync(
+            approverUserId,
+            "APPROVE",
+            "PERMISOS",
+            "PermissionRequest",
+            requestId,
+            oldValues: new { Status = oldStatusName },
+            newValues: new { Status = "Aprobada" },
+            description: $"Permiso aprobado: {request.PermissionType?.Name}"
+        );
 
-        // Notificar al empleado
         if (request.Employee?.User != null)
         {
             await _notificationService.NotifyRequestStatusChangeAsync(
-                request.Employee.User.Id, "Permiso", requestId, "Aprobada", comments);
+                request.Employee.User.Id,
+                "Permiso",
+                requestId,
+                "Aprobada",
+                comments);
         }
 
-        return await GetRequestByIdAsync(requestId) ?? throw new Exception("Error al aprobar solicitud");
+        return await GetRequestByIdAsync(requestId)
+            ?? throw new Exception("Error al aprobar solicitud");
     }
 
     public async Task<PermissionRequestDto> RejectRequestAsync(int requestId, int approverUserId, string reason)
     {
         var request = await _context.PermissionRequests
             .Include(pr => pr.Employee)
-                .ThenInclude(e => e.User)
+                .ThenInclude(e => e!.User)
             .Include(pr => pr.PermissionType)
+            .Include(pr => pr.RequestStatus)
             .FirstOrDefaultAsync(pr => pr.Id == requestId);
 
         if (request == null)
             throw new ArgumentException("Solicitud no encontrada");
 
-        if (request.Status != RequestStatus.Pendiente && request.Status != RequestStatus.EnRevision)
-            throw new InvalidOperationException("Solo se pueden rechazar solicitudes pendientes o en revisión");
+        var pendingStatus = await GetRequestStatusAsync("Pendiente");
+        var rejectedStatus = await GetRequestStatusAsync("Rechazada");
 
-        var oldStatus = request.Status;
-        request.Status = RequestStatus.Rechazada;
+        if (request.RequestStatusId != pendingStatus.Id)
+            throw new InvalidOperationException("Solo se pueden rechazar solicitudes pendientes");
+
+        var oldStatusName = request.RequestStatus?.Name ?? string.Empty;
+
+        request.RequestStatusId = rejectedStatus.Id;
         request.ApprovedByUserId = approverUserId;
         request.ApprovedAt = DateTime.UtcNow;
         request.ApproverComments = reason;
@@ -295,50 +368,75 @@ public class PermissionService : IPermissionService
 
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(approverUserId, "REJECT", "PERMISOS", "PermissionRequest", requestId,
-            oldValues: new { Status = oldStatus.ToString() },
-            newValues: new { Status = RequestStatus.Rechazada.ToString(), Reason = reason },
-            description: $"Permiso rechazado: {reason}");
+        await _auditService.LogAsync(
+            approverUserId,
+            "REJECT",
+            "PERMISOS",
+            "PermissionRequest",
+            requestId,
+            oldValues: new { Status = oldStatusName },
+            newValues: new { Status = "Rechazada", Reason = reason },
+            description: $"Permiso rechazado: {reason}"
+        );
 
-        // Notificar al empleado
         if (request.Employee?.User != null)
         {
             await _notificationService.NotifyRequestStatusChangeAsync(
-                request.Employee.User.Id, "Permiso", requestId, "Rechazada", reason);
+                request.Employee.User.Id,
+                "Permiso",
+                requestId,
+                "Rechazada",
+                reason);
         }
 
-        return await GetRequestByIdAsync(requestId) ?? throw new Exception("Error al rechazar solicitud");
+        return await GetRequestByIdAsync(requestId)
+            ?? throw new Exception("Error al rechazar solicitud");
     }
 
     public async Task<PermissionRequestDto> CancelRequestAsync(int requestId, int userId, string? reason = null)
     {
-        var request = await _context.PermissionRequests.FindAsync(requestId);
+        var request = await _context.PermissionRequests
+            .Include(pr => pr.RequestStatus)
+            .FirstOrDefaultAsync(pr => pr.Id == requestId);
 
         if (request == null)
             throw new ArgumentException("Solicitud no encontrada");
 
-        if (request.Status == RequestStatus.Cancelada)
+        var approvedStatus = await GetRequestStatusAsync("Aprobada");
+        var cancelledStatus = await GetRequestStatusAsync("Cancelada");
+
+        if (request.RequestStatusId == cancelledStatus.Id)
             throw new InvalidOperationException("La solicitud ya está cancelada");
 
-        if (request.Status == RequestStatus.Aprobada && request.StartDate <= DateTime.Today)
+        if (request.RequestStatusId == approvedStatus.Id && request.StartDate <= DateTime.Today)
             throw new InvalidOperationException("No se puede cancelar una solicitud aprobada cuya fecha ya pasó");
 
-        var oldStatus = request.Status;
-        request.Status = RequestStatus.Cancelada;
+        var oldStatusName = request.RequestStatus?.Name ?? string.Empty;
+
+        request.RequestStatusId = cancelledStatus.Id;
         request.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        await _auditService.LogAsync(userId, "CANCEL", "PERMISOS", "PermissionRequest", requestId,
-            oldValues: new { Status = oldStatus.ToString() },
-            newValues: new { Status = RequestStatus.Cancelada.ToString() },
-            description: reason ?? "Solicitud de permiso cancelada");
+        await _auditService.LogAsync(
+            userId,
+            "CANCEL",
+            "PERMISOS",
+            "PermissionRequest",
+            requestId,
+            oldValues: new { Status = oldStatusName },
+            newValues: new { Status = "Cancelada" },
+            description: reason ?? "Solicitud de permiso cancelada"
+        );
 
-        return await GetRequestByIdAsync(requestId) ?? throw new Exception("Error al cancelar solicitud");
+        return await GetRequestByIdAsync(requestId)
+            ?? throw new Exception("Error al cancelar solicitud");
     }
 
     public async Task<PermissionUsageSummaryDto> GetUsageSummaryAsync(int employeeId, int year)
     {
+        var approvedStatus = await GetRequestStatusAsync("Aprobada");
+
         var permissionTypes = await _context.PermissionTypes
             .Where(pt => pt.IsActive)
             .ToListAsync();
@@ -348,10 +446,11 @@ public class PermissionService : IPermissionService
         foreach (var type in permissionTypes)
         {
             var used = await _context.PermissionRequests
-                .Where(pr => pr.EmployeeId == employeeId 
-                    && pr.PermissionTypeId == type.Id
-                    && pr.StartDate.Year == year
-                    && pr.Status == RequestStatus.Aprobada)
+                .Where(pr =>
+                    pr.EmployeeId == employeeId &&
+                    pr.PermissionTypeId == type.Id &&
+                    pr.StartDate.Year == year &&
+                    pr.RequestStatusId == approvedStatus.Id)
                 .SumAsync(pr => pr.DurationDays);
 
             usageByType[type.Name] = used;
@@ -378,6 +477,17 @@ public class PermissionService : IPermissionService
         return employee?.Supervisor?.User;
     }
 
+    private async Task<RequestStatus> GetRequestStatusAsync(string name)
+    {
+        var status = await _context.RequestStatuses
+            .FirstOrDefaultAsync(rs => rs.Name == name);
+
+        if (status == null)
+            throw new InvalidOperationException($"No existe el estado de solicitud: {name}");
+
+        return status;
+    }
+
     private static PermissionRequestDto MapToDto(PermissionRequest pr)
     {
         return new PermissionRequestDto
@@ -395,7 +505,8 @@ public class PermissionService : IPermissionService
             DurationDays = pr.DurationDays,
             Reason = pr.Reason,
             DocumentUrl = pr.DocumentUrl,
-            Status = pr.Status.ToString(),
+            RequestStatusId = pr.RequestStatusId,
+            RequestStatusName = pr.RequestStatus?.Name ?? string.Empty,
             ApprovedByUserId = pr.ApprovedByUserId,
             ApprovedByUserName = pr.ApprovedByUser?.Username,
             ApprovedAt = pr.ApprovedAt,
