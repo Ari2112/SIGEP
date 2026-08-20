@@ -2,6 +2,7 @@
 //  sesión. Solo recibe la solicitud, se la pasa
 //  al servicio (AuthService) y devuelve la respuesta.
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SigepApplication.DTOs.Auth;
 using SigepApplication.Interfaces;
@@ -87,6 +88,36 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error obteniendo usuario actual");
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
+    //  POST api/v1/auth/change-password
+    //  Cualquier usuario que ya inició sesión (Empleado, RRHH, Admin, etc.)
+    //  puede cambiar su propia contraseña desde "Mi Perfil", siempre que
+    //  primero escriba correctamente su contraseña actual.
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto request)
+    {
+        try
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new { message = "Token inválido" });
+            }
+
+            var (success, error) = await _authService.ChangePasswordAsync(userId, request.CurrentPassword, request.NewPassword);
+
+            if (!success)
+                return BadRequest(new { message = error });
+
+            return Ok(new { message = "Contraseña actualizada correctamente" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error cambiando contraseña");
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
     }

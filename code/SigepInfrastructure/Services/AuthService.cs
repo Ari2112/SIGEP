@@ -99,7 +99,33 @@ public class AuthService : IAuthService
             FullName = user.Employee?.FullName
         };
     }
-    //  GenerateJwtToken: arma el "pase de entrada" (el token JWT). 
+    //  ChangePasswordAsync: deja que un usuario YA conectado cambie su
+    //  propia contraseña. Primero verificamos que la contraseña actual
+    //  que escribió sea correcta (igual que en el login); si no lo es,
+    //  no se cambia nada. Si es correcta, guardamos la nueva contraseña
+    //  encriptada con BCrypt, igual que se hace con todas las contraseñas
+    //  del sistema.
+    public async Task<(bool Success, string? Error)> ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+    {
+        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
+            return (false, "La nueva contraseña debe tener al menos 6 caracteres.");
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
+        if (user == null)
+            return (false, "Usuario no encontrado.");
+
+        if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
+            return (false, "La contraseña actual no es correcta.");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return (true, null);
+    }
+
+    //  GenerateJwtToken: arma el "pase de entrada" (el token JWT).
     private string GenerateJwtToken(int userId, string username, string role, int? employeeId = null)
     {
         // Leemos la configuración del token (llave secreta, emisor, etc.).

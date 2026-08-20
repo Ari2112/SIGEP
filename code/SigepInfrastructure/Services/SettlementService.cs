@@ -150,6 +150,10 @@ int bonusDaysWorked = Math.Max(0, (terminationDate - bonusAccrualStart).Days);
 decimal proportionalBonus = Math.Round(lastSalary * bonusDaysWorked / 360m, 2);
 
 // Preaviso - Art. 28 Código de Trabajo de Costa Rica
+// Corrección: a partir de 1 año de servicio el preaviso SIEMPRE es de
+// 1 mes (30 días), sin importar si la persona lleva 2, 8 o 20 años.
+// La ley no lo va aumentando con la antigüedad (antes este código sí
+// lo hacía, llegando hasta 60 días, lo cual no corresponde al Art. 28).
 decimal noticeAmount = 0;
 
 if (terminationType.HasSeverance || terminationType.Name.Contains("Responsabilidad"))
@@ -159,8 +163,7 @@ if (terminationType.HasSeverance || terminationType.Name.Contains("Responsabilid
         < 3 => 0,
         < 6 => 7,
         < 12 => 15,
-        < 36 => 30,
-        _ => 60
+        _ => 30
     };
     noticeAmount = Math.Round(dailySalary * noticeDays, 2);
 }
@@ -169,27 +172,40 @@ decimal severance = 0;
 
         if (terminationType.HasSeverance)
         {
-            // Cesantía según Art. 29 Código de Trabajo CR
-// Máximo 8 años de reconocimiento
-decimal daysPerYear = workedYears switch
-{
-    0 when totalMonths < 3  => 0,
-    0 when totalMonths < 6  => 7,
-    0                        => 14,
-    1                        => 19.5m,
-    2                        => 20.0m,
-    3                        => 20.5m,
-    4                        => 21.0m,
-    _                        => 21.5m
-};
+            // Cesantía según Art. 29 Código de Trabajo CR (tabla oficial).
+            // Corrección: la cesantía es ACUMULATIVA/PROGRESIVA. Cada año
+            // trabajado gana SU PROPIA tarifa de la tabla y esas tarifas
+            // se SUMAN (no se aplica la tarifa de un solo año a todos los
+            // años trabajados, como hacía este código antes). Máximo 8
+            // años reconocidos.
+            decimal dailySalaryForSeverance = lastSalary / 30m;
 
-int yearsForCalc = Math.Min(workedYears, 8);
-decimal totalCesantiaDays = daysPerYear * yearsForCalc;
-decimal dailySalaryForSeverance = lastSalary / 30m;
-severance = Math.Round(dailySalaryForSeverance * totalCesantiaDays, 2);
+            if (workedYears == 0)
+            {
+                // Menos de 1 año: tabla especial por meses (no por año).
+                // Antes había una línea que sobreescribía este resultado
+                // con "medio mes de salario" fijo para 3-11 meses; eso
+                // duplicaba el pago frente a la tabla real (7 o 14 días)
+                // y ya se quitó.
+                int partialYearDays = totalMonths switch
+                {
+                    < 3 => 0,
+                    < 6 => 7,
+                    _   => 14 // 6 a 11 meses
+                };
+                severance = Math.Round(dailySalaryForSeverance * partialYearDays, 2);
+            }
+            else
+            {
+                decimal[] cesantiaDaysPerYear = { 19.5m, 20.0m, 20.5m, 21.0m, 21.24m, 21.5m, 22.0m, 22.0m };
+                int yearsForCalc = Math.Min(workedYears, 8);
 
-            if (workedYears == 0 && totalMonths >= 3)
-                severance = lastSalary * 0.5m;
+                decimal totalCesantiaDays = 0;
+                for (int y = 1; y <= yearsForCalc; y++)
+                    totalCesantiaDays += cesantiaDaysPerYear[y - 1];
+
+                severance = Math.Round(dailySalaryForSeverance * totalCesantiaDays, 2);
+            }
         }
 
         decimal totalDeductions = dto.AdditionalDeductions.Sum(d => d.Amount);

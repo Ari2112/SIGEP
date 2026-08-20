@@ -84,7 +84,8 @@ public class PayrollService : IPayrollService
             // mismo período aunque una esté anulada, así que se elimina la vieja
             // para liberar el período antes de regenerar. El borrado en cascada
             // se lleva detalles, deducciones y beneficios; las horas extra ligadas
-            // quedan con PayrollDetailId nulo y vuelven a quedar disponibles.
+            // quedan con PayrollDetailId nulo (su Status ya se revirtió a Aprobada
+            // en AnnulAsync, así que quedan disponibles para la nueva planilla).
             _context.Payrolls.Remove(existing);
             await _context.SaveChangesAsync();
         }
@@ -431,6 +432,31 @@ detail.NetSalary = grossSalary - detailDeductions;
 
         if (payroll.PayrollStatusId != draftStatus.Id && payroll.PayrollStatusId != processedStatus.Id)
             throw new InvalidOperationException("Solo se puede anular una planilla en estado Borrador o Procesada");
+
+        // Las horas extra que esta planilla ya había "consumido" (Status = Pagada,
+        // ligadas a un detalle de esta planilla) quedan libres otra vez: vuelven a
+        // Aprobada y se desligan del detalle. Sin este paso, cualquier hora extra
+        // que pase por una planilla que luego se anula queda "Pagada" para siempre
+        // y nunca vuelve a aparecer en ninguna planilla futura, aunque nunca se
+        // le pagó de verdad.
+        var detailIds = await _context.PayrollDetails
+            .Where(d => d.PayrollId == id)
+            .Select(d => d.Id)
+            .ToListAsync();
+
+        if (detailIds.Count > 0)
+        {
+            var consumedOvertime = await _context.OvertimeRecords
+                .Where(o => o.PayrollDetailId != null && detailIds.Contains(o.PayrollDetailId.Value))
+                .ToListAsync();
+
+            foreach (var ot in consumedOvertime)
+            {
+                ot.Status = OvertimeStatus.Aprobada;
+                ot.PayrollDetailId = null;
+                ot.UpdatedAt = DateTime.UtcNow;
+            }
+        }
 
         payroll.PayrollStatusId = annulledStatus.Id;
         payroll.Notes = notes;

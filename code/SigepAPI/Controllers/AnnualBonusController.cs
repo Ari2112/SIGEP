@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SigepApplication.DTOs.AnnualBonus;
 using SigepApplication.Interfaces;
+using SigepInfrastructure.Services;
 using System.Security.Claims;
 
 namespace SigepAPI.Controllers;
@@ -12,11 +13,13 @@ namespace SigepAPI.Controllers;
 public class AnnualBonusController : ControllerBase
 {
     private readonly IAnnualBonusService _annualBonusService;
+    private readonly AnnualBonusPdfService _pdfService;
     private readonly ILogger<AnnualBonusController> _logger;
 
-    public AnnualBonusController(IAnnualBonusService annualBonusService, ILogger<AnnualBonusController> logger)
+    public AnnualBonusController(IAnnualBonusService annualBonusService, AnnualBonusPdfService pdfService, ILogger<AnnualBonusController> logger)
     {
         _annualBonusService = annualBonusService;
+        _pdfService = pdfService;
         _logger = logger;
     }
 
@@ -100,6 +103,27 @@ public class AnnualBonusController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return Conflict(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Descarga el PDF del aguinaldo</summary>
+    [HttpGet("{id}/pdf")]
+    public async Task<IActionResult> DownloadPdf(int id)
+    {
+        try
+        {
+            var bonus = await _annualBonusService.GetByIdAsync(id);
+            if (bonus == null)
+                return NotFound(new { message = "Aguinaldo no encontrado" });
+
+            var bytes = _pdfService.GenerateAnnualBonusReport(bonus);
+            var filename = $"Aguinaldo_{bonus.Year}.pdf";
+            return File(bytes, "application/pdf", filename);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generando PDF de aguinaldo");
+            return StatusCode(500, new { message = ex.Message });
         }
     }
 }

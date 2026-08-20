@@ -40,6 +40,8 @@ export const authAPI = {
   login: (username, password) =>
     apiClient.post('/auth/login', { username, password }),
   getCurrentUser: () => apiClient.get('/auth/me'),
+  changePassword: (currentPassword, newPassword) =>
+    apiClient.post('/auth/change-password', { currentPassword, newPassword }),
 };
 
 export const employeeAPI = {
