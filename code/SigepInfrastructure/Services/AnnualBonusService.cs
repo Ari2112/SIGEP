@@ -226,25 +226,48 @@ public class AnnualBonusService : IAnnualBonusService
         return (await GetByIdAsync(id))!;
     }
 
-    // === Aguinaldo proporcional - Ley No. 2412 / MTSS ===
-    // El período legal del aguinaldo va del 1 de diciembre del año anterior al 30 de
-    // noviembre del año en curso. Se cuentan los DÍAS realmente trabajados dentro del
-    // período (desde el ingreso o el 1 de diciembre, lo que sea más reciente, hasta el
-    // fin del período) y se calcula salario × días ÷ 360. Nunca se usa el número de mes
-    // de calendario, porque eso genera un error de conteo (ver historial de correcciones).
-    // Esta es la misma metodología ya usada en SettlementService para liquidaciones,
-    // para que ambos módulos calculen el aguinaldo de forma consistente.
+    // === Aguinaldo proporcional - Ley No. 2412 ===
+    //
+    // La ley dice: aguinaldo = (suma de los salarios devengados entre el 1 de diciembre
+    // del año anterior y el 30 de noviembre del año en curso) ÷ 12.
+    //
+    // Con un salario mensual fijo eso equivale a:  salario × meses trabajados ÷ 12.
+    // Por eso, quien trabajó el período completo recibe EXACTAMENTE un salario mensual,
+    // y quien trabajó 6 meses recibe medio salario.
+    //
+    // Se cuentan meses completos desde el ingreso (o desde el 1 de diciembre, lo que sea
+    // más reciente) y los días sueltos que sobran se cuentan como fracción de mes (/30).
     private static (int WorkedMonths, decimal ProportionalAmount) CalculateProportionalBonus(
         Employee emp, DateTime periodStart, DateTime periodEnd)
     {
+        // El devengo arranca en el ingreso o el 1 de diciembre, lo que sea más reciente.
         DateTime accrualStart = emp.HireDate > periodStart ? emp.HireDate : periodStart;
-        int daysWorked = Math.Max(0, (periodEnd - accrualStart).Days);
+
+        // Si entró después de que cerró el período, no le corresponde nada de este año.
+        if (accrualStart > periodEnd)
+            return (0, 0m);
+
+        // Meses calendario completos entre el inicio del devengo y el fin del período.
+        int fullMonths = ((periodEnd.Year - accrualStart.Year) * 12) + periodEnd.Month - accrualStart.Month;
+        if (accrualStart.AddMonths(fullMonths) > periodEnd)
+            fullMonths--;
+        if (fullMonths < 0) fullMonths = 0;
+
+        // Días que sobran después del último mes completo, como fracción de mes.
+        DateTime lastFullMonth = accrualStart.AddMonths(fullMonths);
+        int leftoverDays = (periodEnd - lastFullMonth).Days + 1;
+        if (leftoverDays < 0) leftoverDays = 0;
+        if (leftoverDays > 30) leftoverDays = 30;
+
+        decimal monthsAccrued = fullMonths + (leftoverDays / 30m);
+        if (monthsAccrued > 12m) monthsAccrued = 12m;
+        if (monthsAccrued < 0m) monthsAccrued = 0m;
 
         decimal salary = emp.BaseSalary;
-        decimal proportionalAmount = Math.Round(salary * daysWorked / 360m, 2);
+        decimal proportionalAmount = Math.Round(salary * monthsAccrued / 12m, 2);
 
         // Solo para mostrar en pantalla/reportes; el monto NO depende de este valor.
-        int workedMonths = (int)Math.Round(daysWorked / 30m, MidpointRounding.AwayFromZero);
+        int workedMonths = (int)Math.Floor(monthsAccrued);
         if (workedMonths > 12) workedMonths = 12;
 
         return (workedMonths, proportionalAmount);
